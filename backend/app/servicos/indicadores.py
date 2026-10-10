@@ -80,8 +80,9 @@ class Calculadora:
         if not existe and not obter_configuracao().brapi_proventos_habilitado:
             return None, [], MOTIVO_SEM_PROVENTOS
         lista = list(self.sessao.scalars(select(Provento).where(
-            Provento.ativo_id == ativo_id, Provento.data_com > referencia - timedelta(days=365),
-            Provento.data_com <= referencia)))
+            # Janela pela data de pagamento (DECISOES.md D-020); sem data de pagamento = ainda não pago.
+            Provento.ativo_id == ativo_id, Provento.data_pagamento > referencia - timedelta(days=365),
+            Provento.data_pagamento <= referencia)))
         aliquota_jcp = POR_ID["basico.dy"].parametros[0].padrao
         soma = sum(ib.provento_liquido(float(p.valor_por_cota), p.tipo, aliquota_jcp).valor for p in lista)
         return soma, lista, None
@@ -188,7 +189,8 @@ class Calculadora:
 
         referencia = cotacao.data if cotacao else date.today()
         soma, proventos, motivo = self.proventos_12m(ativo.id, referencia)
-        i_prov = [self._insumo("provento", p.valor_por_cota, p, tipo=p.tipo, data_com=p.data_com.isoformat())
+        i_prov = [self._insumo("provento", p.valor_por_cota, p, tipo=p.tipo, data_com=p.data_com.isoformat(),
+                                 data_pagamento=p.data_pagamento.isoformat())
                   for p in proventos]
         if motivo:
             add("basico.dy", indisponivel(motivo), [i_preco], referencia)
@@ -280,7 +282,8 @@ class Calculadora:
         if motivo:
             calculos.append(Calculo("basico.dy", indisponivel(motivo), [i_preco] if i_preco else [], referencia))
         else:
-            i_prov = [self._insumo("provento", p.valor_por_cota, p, data_com=p.data_com.isoformat()) for p in proventos]
+            i_prov = [self._insumo("provento", p.valor_por_cota, p, data_com=p.data_com.isoformat(),
+                                     data_pagamento=p.data_pagamento.isoformat()) for p in proventos]
             calculos.append(Calculo("basico.dy", ib.dividend_yield(soma, preco), [i_preco] + i_prov, referencia))
 
         if fii is None:

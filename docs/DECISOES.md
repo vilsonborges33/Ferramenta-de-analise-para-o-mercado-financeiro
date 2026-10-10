@@ -70,15 +70,20 @@ Enquanto não há proventos (brapi paga), o DY por proventos do FII aparece como
 
 **D-019 — Definições de métricas respondidas pelo usuário** · 10/10/2026 · aprovada
 - **JCP:** os cálculos (DY, payout e, na Fase 2, Bazin) usam o valor **líquido** de IR na fonte, com alíquota como parâmetro (padrão 15%). O banco guarda o valor bruto declarado. Onde o JCP for exibido, mostrar líquido em destaque e bruto ao lado. Dividendos e rendimentos de FII entram pelo valor declarado.
-- **Graham:** a fórmula original √(22,5 × LPA × VPA) não usa taxa de juros (22,5 = P/L 15 × P/VP 1,5). A pergunta valia só para a **fórmula revisada** V = LPA × (8,5 + 2g) × 4,4 ÷ Y, também pedida na especificação (livro 6). Pendente: escolher Y (recomendação: Tesouro Prefixado mais longo).
-- **Peter Lynch:** preço justo **sem teto** no crescimento. Quando o crescimento passar de um limite (parâmetro, proposta: 25% a.a.) ou vier de lucro-base muito baixo ou negativo, o número aparece com o aviso "crescimento atípico: verifique a origem (efeito de base, evento não recorrente)".
-- **Data do provento no DY:** pendente de resposta. Até lá, a janela de 12 meses é contada pela **data-com**.
+- **Graham:** a fórmula original √(22,5 × LPA × VPA) não usa taxa de juros (22,5 = P/L 15 × P/VP 1,5). Na **fórmula revisada** V = LPA × (8,5 + 2g) × 4,4 ÷ Y, a taxa Y é a **Selic meta** vigente (série SGS 432), editável pelo usuário (D-020).
+- **Peter Lynch:** preço justo **sem teto** no crescimento. Quando o crescimento passar de **25% a.a.** (parâmetro) ou vier de lucro-base muito baixo ou negativo, o número aparece com o aviso "crescimento atípico: verifique a origem (efeito de base, evento não recorrente)".
+- **Data do provento no DY:** ver D-020.
+
+**D-020 — DY pela data de pagamento; Selic no Graham revisado; limite de 25% no Lynch** · 10/10/2026 · aprovada
+- A janela de 12 meses do DY, do payout e (Fase 2) do Bazin conta os proventos pela **data de pagamento**. Provento anunciado e ainda sem data de pagamento não entra. Substitui a recomendação inicial (data-com).
+- Graham revisado: Y = Selic meta vigente.
+- Lynch: aviso de "crescimento atípico" acima de 25% a.a. ou com lucro-base muito baixo/negativo.
 
 ---
 
 ## Perguntas em aberto
 
-> Itens 1 a 5 e 15 respondidos na Fase 1 (D-012). Os demais seguem abertos.
+> Itens 1 a 11 e 15 respondidos (D-012, D-019, D-020). Os demais seguem abertos.
 
 ### Fontes e custos
 1. **Cotações e proventos BR.** A recomendação é a brapi.dev, plano Startup (~R$ 100–120/mês), porque o plano gratuito não traz proventos.

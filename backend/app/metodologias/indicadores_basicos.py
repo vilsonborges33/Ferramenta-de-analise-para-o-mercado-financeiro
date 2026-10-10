@@ -203,9 +203,9 @@ def provento_liquido(valor_bruto: Numero, tipo: str, aliquota_jcp: float = 0.15)
 
 
 def dividend_yield(proventos_por_acao_12m: Numero, preco: Numero) -> Resultado:
-    """DY = soma dos proventos líquidos por ação com data-com nos últimos 12 meses ÷ cotação.
+    """DY = soma dos proventos líquidos por ação pagos nos últimos 12 meses ÷ cotação.
 
-    Critério (DECISOES.md D-019): janela por data-com; JCP pelo valor líquido de IR.
+    Critério (DECISOES.md D-019/D-020): janela pela data de pagamento; JCP pelo valor líquido de IR.
     """
     if f := faltando(proventos_12m=proventos_por_acao_12m, preco=preco):
         return f

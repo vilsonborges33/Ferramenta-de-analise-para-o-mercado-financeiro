@@ -125,7 +125,7 @@ def test_series_e_tesouro(cliente):
     assert cliente.get("/saude").json() == {"status": "ok"}
 
 
-def test_dy_usa_jcp_liquido(cliente, sessao):
+def test_dy_usa_jcp_liquido_e_data_de_pagamento(cliente, sessao):
     from datetime import date
     from decimal import Decimal
 
@@ -135,13 +135,22 @@ def test_dy_usa_jcp_liquido(cliente, sessao):
     from app.ingestao.base import lote as abrir_lote
 
     ativo_id = sessao.scalar(select(Ativo.id).where(Ativo.ticker == "EXMP3"))
+    # cotação de 02/01/2025 → janela de pagamento (03/01/2024, 02/01/2025]
+    casos = (
+        ("DIVIDENDO", "0.50", date(2024, 12, 20), date(2025, 1, 15)),  # pago depois: não entra
+        ("JCP", "0.20", date(2024, 6, 20), date(2024, 7, 10)),  # entra líquido: 0,17
+        ("DIVIDENDO", "0.30", date(2023, 12, 1), date(2024, 2, 1)),  # data-com antiga, pago na janela: entra
+        ("DIVIDENDO", "9.99", date(2022, 12, 1), date(2023, 3, 1)),  # fora da janela
+        ("DIVIDENDO", "1.00", date(2024, 11, 1), None),  # sem data de pagamento: não entra
+    )
     with abrir_lote(sessao, "BRAPI") as ctx:
-        for tipo, valor, data_com in (("DIVIDENDO", "0.50", date(2024, 12, 20)), ("JCP", "0.20", date(2024, 6, 20)),
-                                      ("DIVIDENDO", "9.99", date(2023, 12, 1))):  # fora da janela de 12 meses
+        for tipo, valor, data_com, pagamento in casos:
             sessao.add(Provento(ativo_id=ativo_id, tipo=tipo, valor_por_cota=Decimal(valor), data_com=data_com,
-                                **ctx.procedencia(data_com)))
+                                data_pagamento=pagamento, **ctx.procedencia(data_com)))
     recalcular(sessao, ["EXMP3"])
     ind = indicadores(cliente.get("/acoes/EXMP3").json())
-    # (0,50 + 0,20 × 0,85) ÷ R$ 10
-    assert ind["basico.dy"]["valor"] == pytest.approx(0.067)
-    assert ind["basico.payout"]["valor"] == pytest.approx(0.67)  # LPA = 1
+    # (0,20 × 0,85 + 0,30) ÷ R$ 10
+    assert ind["basico.dy"]["valor"] == pytest.approx(0.047)
+    assert ind["basico.payout"]["valor"] == pytest.approx(0.47)  # LPA = 1
+    pagos = {p["data_pagamento"] for p in ind["basico.dy"]["procedencia"] if p["insumo"] == "provento"}
+    assert pagos == {"2024-07-10", "2024-02-01"}
