@@ -74,6 +74,14 @@ def test_outros_multiplos():
     assert not ib.p_ativo_circulante_liquido(10_000, 6_000, None).disponivel
 
 
+def test_provento_liquido():
+    assert ib.provento_liquido(1.0, "JCP").valor == pytest.approx(0.85)
+    assert ib.provento_liquido(1.0, "JCP", aliquota_jcp=0.20).valor == pytest.approx(0.80)
+    assert ib.provento_liquido(1.0, "DIVIDENDO").valor == 1.0
+    assert ib.provento_liquido(1.0, "JCP").detalhes["bruto"] == 1.0
+    assert not ib.provento_liquido(None, "JCP").disponivel
+
+
 def test_dividend_yield_e_payout():
     assert ib.dividend_yield(1.5, 25).valor == 0.06
     assert ib.dividend_yield(0, 25).valor == 0  # sem dividendos: DY zero

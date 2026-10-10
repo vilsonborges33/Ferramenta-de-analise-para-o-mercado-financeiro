@@ -123,3 +123,25 @@ def test_series_e_tesouro(cliente):
     assert cliente.get("/series/XYZ").status_code == 404
     assert cliente.get("/tesouro/taxas").json()["titulos"] == []
     assert cliente.get("/saude").json() == {"status": "ok"}
+
+
+def test_dy_usa_jcp_liquido(cliente, sessao):
+    from datetime import date
+    from decimal import Decimal
+
+    from sqlalchemy import select
+
+    from app.db.modelos import Ativo, Provento
+    from app.ingestao.base import lote as abrir_lote
+
+    ativo_id = sessao.scalar(select(Ativo.id).where(Ativo.ticker == "EXMP3"))
+    with abrir_lote(sessao, "BRAPI") as ctx:
+        for tipo, valor, data_com in (("DIVIDENDO", "0.50", date(2024, 12, 20)), ("JCP", "0.20", date(2024, 6, 20)),
+                                      ("DIVIDENDO", "9.99", date(2023, 12, 1))):  # fora da janela de 12 meses
+            sessao.add(Provento(ativo_id=ativo_id, tipo=tipo, valor_por_cota=Decimal(valor), data_com=data_com,
+                                **ctx.procedencia(data_com)))
+    recalcular(sessao, ["EXMP3"])
+    ind = indicadores(cliente.get("/acoes/EXMP3").json())
+    # (0,50 + 0,20 × 0,85) ÷ R$ 10
+    assert ind["basico.dy"]["valor"] == pytest.approx(0.067)
+    assert ind["basico.payout"]["valor"] == pytest.approx(0.67)  # LPA = 1

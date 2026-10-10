@@ -48,11 +48,7 @@ Cada arquivo baixado fica em `dados_brutos/<fonte>/<data>/`, com o hash registra
 - Uso **pessoal** por enquanto: brapi gratuita + COTAHIST para preços. Licença de exibição comercial não é necessária agora.
 - Dependências aprovadas: httpx, openpyxl, pydantic-settings, psycopg, argon2-cffi, PyJWT, scipy, ruff, echarts. APScheduler e @playwright/test já estavam na stack.
 - Os 20 ativos de validação propostos foram aceitos (`TICKERS_ACOMPANHADOS` no `.env`).
-- Definições ambíguas: a resposta repetiu as opções sem escolher, então adotei as recomendações (cada uma pode ser trocada sem refazer o projeto):
-  - DY por **data-com**;
-  - JCP pelo valor **bruto**;
-  - taxa Y do Graham revisado = **Tesouro Prefixado mais longo** (usada na Fase 2);
-  - "Taxa Peter Lynch" = P/L justo igual ao crescimento, com teto (Fase 2).
+- Definições ambíguas: ver D-019 (respondidas pelo usuário).
 
 **D-013 — Indicadores básicos já na Fase 1** · 10/10/2026 · aprovada (pedido do usuário)
 A Fase 1 calcula e exibe os principais indicadores do tipo dos sites de análise (P/L, P/VP, PSR, EV/EBIT, EV/EBITDA, ROE, ROIC, ROA, margens, endividamento, liquidez, CAGR de 5 anos e, para FIIs, P/VP, VP/cota, patrimônio, cotistas e DY informado). Eles vêm de funções puras em `app/metodologias/` com testes. Nenhum dado é obtido de sites de terceiros: tudo sai das fontes oficiais.
@@ -71,6 +67,12 @@ Falhas de rede ficam registradas em `lote_ingestao` com status `erro`. Dados ant
 
 **D-018 — Indicadores de FII com base nos informes da CVM** · 10/10/2026 · aprovada
 Enquanto não há proventos (brapi paga), o DY por proventos do FII aparece como indisponível. O "DY informado" (soma dos percentuais mensais que o administrador declara à CVM) é mostrado à parte, com rótulo e limitação explícitos.
+
+**D-019 — Definições de métricas respondidas pelo usuário** · 10/10/2026 · aprovada
+- **JCP:** os cálculos (DY, payout e, na Fase 2, Bazin) usam o valor **líquido** de IR na fonte, com alíquota como parâmetro (padrão 15%). O banco guarda o valor bruto declarado. Onde o JCP for exibido, mostrar líquido em destaque e bruto ao lado. Dividendos e rendimentos de FII entram pelo valor declarado.
+- **Graham:** a fórmula original √(22,5 × LPA × VPA) não usa taxa de juros (22,5 = P/L 15 × P/VP 1,5). A pergunta valia só para a **fórmula revisada** V = LPA × (8,5 + 2g) × 4,4 ÷ Y, também pedida na especificação (livro 6). Pendente: escolher Y (recomendação: Tesouro Prefixado mais longo).
+- **Peter Lynch:** preço justo **sem teto** no crescimento. Quando o crescimento passar de um limite (parâmetro, proposta: 25% a.a.) ou vier de lucro-base muito baixo ou negativo, o número aparece com o aviso "crescimento atípico: verifique a origem (efeito de base, evento não recorrente)".
+- **Data do provento no DY:** pendente de resposta. Até lá, a janela de 12 meses é contada pela **data-com**.
 
 ---
 

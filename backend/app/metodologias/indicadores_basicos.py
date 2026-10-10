@@ -191,10 +191,21 @@ def p_ativo_circulante_liquido(
     )
 
 
-def dividend_yield(proventos_por_acao_12m: Numero, preco: Numero) -> Resultado:
-    """DY = soma dos proventos brutos por ação com data-com nos últimos 12 meses ÷ cotação.
+def provento_liquido(valor_bruto: Numero, tipo: str, aliquota_jcp: float = 0.15) -> Resultado:
+    """Provento líquido por ação: JCP sofre IR retido na fonte (padrão 15%); dividendos e rendimentos
+    de FII são isentos na fonte para a pessoa física (DECISOES.md D-019).
+    """
+    if f := faltando(valor_bruto=valor_bruto):
+        return f
+    if tipo == "JCP":
+        return ok(valor_bruto * (1 - aliquota_jcp), bruto=valor_bruto)
+    return ok(valor_bruto, bruto=valor_bruto)
 
-    Critério (DECISOES.md D-012): proventos por data-com, JCP pelo valor bruto.
+
+def dividend_yield(proventos_por_acao_12m: Numero, preco: Numero) -> Resultado:
+    """DY = soma dos proventos líquidos por ação com data-com nos últimos 12 meses ÷ cotação.
+
+    Critério (DECISOES.md D-019): janela por data-com; JCP pelo valor líquido de IR.
     """
     if f := faltando(proventos_12m=proventos_por_acao_12m, preco=preco):
         return f

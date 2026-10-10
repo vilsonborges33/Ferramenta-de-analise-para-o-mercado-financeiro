@@ -82,7 +82,9 @@ class Calculadora:
         lista = list(self.sessao.scalars(select(Provento).where(
             Provento.ativo_id == ativo_id, Provento.data_com > referencia - timedelta(days=365),
             Provento.data_com <= referencia)))
-        return sum(float(p.valor_por_cota) for p in lista), lista, None
+        aliquota_jcp = POR_ID["basico.dy"].parametros[0].padrao
+        soma = sum(ib.provento_liquido(float(p.valor_por_cota), p.tipo, aliquota_jcp).valor for p in lista)
+        return soma, lista, None
 
     def padronizada(self, empresa_id: int, tipo: str) -> DemonstracaoPadronizada | None:
         return self.sessao.scalar(select(DemonstracaoPadronizada).where(

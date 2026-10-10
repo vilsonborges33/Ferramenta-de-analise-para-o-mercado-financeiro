@@ -39,6 +39,7 @@ class Metrica:
         return asdict(self)
 
 
+_ALIQUOTA_JCP = Parametro("aliquota_jcp", "IR retido na fonte sobre JCP", 0.15, 0.0, 0.5)
 _ALIQUOTA = Parametro("aliquota_ir", "Alíquota de IR/CSLL sobre o EBIT", 0.34, 0.0, 0.5)
 
 METRICAS: tuple[Metrica, ...] = (
@@ -81,10 +82,12 @@ METRICAS: tuple[Metrica, ...] = (
     Metrica("basico.p_ativo_circ_liq", "P/Ativo circulante líquido", "Valuation", "x",
             "Valor de mercado ÷ (ativo circulante − passivo total)", GRAHAM, limitacoes=(LIMITACAO_FINANCEIRAS,)),
     Metrica("basico.dy", "Dividend yield (12 m)", "Valuation", "%",
-            "Proventos brutos por ação com data-com nos últimos 12 meses ÷ cotação", GRAHAM,
-            aplica_a=("ACAO", "FII"),
-            limitacoes=("Depende da ingestão de proventos (plano pago da brapi).",)),
-    Metrica("basico.payout", "Payout", "Valuation", "%", "Proventos por ação (12 m) ÷ LPA (12 m)", GRAHAM,
+            "Proventos líquidos por ação com data-com nos últimos 12 meses ÷ cotação (JCP × (1 − IR))", GRAHAM,
+            aplica_a=("ACAO", "FII"), parametros=(_ALIQUOTA_JCP,),
+            limitacoes=("Depende da ingestão de proventos (plano pago da brapi).",
+                        "JCP pelo valor líquido de IR na fonte; dividendos pelo valor declarado.")),
+    Metrica("basico.payout", "Payout", "Valuation", "%", "Proventos líquidos por ação (12 m) ÷ LPA (12 m)", GRAHAM,
+            parametros=(_ALIQUOTA_JCP,),
             limitacoes=("Depende da ingestão de proventos (plano pago da brapi).",)),
     # rentabilidade
     Metrica("basico.roe", "ROE", "Rentabilidade", "%",
