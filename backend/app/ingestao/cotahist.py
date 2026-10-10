@@ -118,9 +118,9 @@ def ligar_fiis_por_isin(sessao) -> None:
 
 
 def ingerir_arquivo(sessao, url: str, tickers: set[str] | None = None) -> int:
-    caminho, sha = baixar(url, "B3_COTAHIST")
-    with zipfile.ZipFile(caminho) as z, lote(sessao, "B3_COTAHIST", str(caminho)) as ctx:
-        ctx.lote.hash_arquivo = sha
+    with lote(sessao, "B3_COTAHIST", url) as ctx:
+        caminho, ctx.lote.hash_arquivo = baixar(url, "B3_COTAHIST")
+        z = zipfile.ZipFile(caminho)
         nome = z.namelist()[0]
         texto = io.TextIOWrapper(z.open(nome), encoding="latin-1").read()
         registros = parse(texto, tickers)

@@ -51,8 +51,7 @@ def gravar(ctx: Contexto, registros: list[dict]) -> int:
 
 
 def ingerir(sessao, desde=None) -> int:
-    caminho, sha = baixar(URL, "TESOURO_TD")
-    with lote(sessao, "TESOURO_TD", str(caminho)) as ctx:
-        ctx.lote.hash_arquivo = sha
+    with lote(sessao, "TESOURO_TD", URL) as ctx:
+        caminho, ctx.lote.hash_arquivo = baixar(URL, "TESOURO_TD")
         df = pd.read_csv(caminho, sep=";", encoding="latin-1", dtype=str, keep_default_na=False)
         return gravar(ctx, parse(df, desde))

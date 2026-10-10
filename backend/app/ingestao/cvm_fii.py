@@ -144,8 +144,9 @@ def _ler(z: zipfile.ZipFile, parte: str, ano: int) -> pd.DataFrame:
 
 def ingerir(sessao, ano: int | None = None) -> int:
     ano = ano or date.today().year
-    caminho, sha = baixar(URL.format(ano=ano), "CVM_FII_MENSAL")
-    with zipfile.ZipFile(caminho) as z, lote(sessao, "CVM_FII_MENSAL", str(caminho)) as ctx:
-        ctx.lote.hash_arquivo = sha
+    url = URL.format(ano=ano)
+    with lote(sessao, "CVM_FII_MENSAL", url) as ctx:
+        caminho, ctx.lote.hash_arquivo = baixar(url, "CVM_FII_MENSAL")
+        z = zipfile.ZipFile(caminho)
         fundos, informes = parse(_ler(z, "geral", ano), _ler(z, "complemento", ano), _ler(z, "ativo_passivo", ano))
         return gravar(ctx, fundos, informes)

@@ -42,9 +42,41 @@ Motivo: termos de acesso automatizado não confirmados, além de economia de arm
 **D-011 — Arquivos brutos guardados em volume para auditoria** · 10/10/2026 · proposta
 Cada arquivo baixado fica em `dados_brutos/<fonte>/<data>/`, com o hash registrado em `lote_ingestao`.
 
+## Fase 1
+
+**D-012 — Respostas da Fase 0 incorporadas** · 10/10/2026 · aprovada
+- Uso **pessoal** por enquanto: brapi gratuita + COTAHIST para preços. Licença de exibição comercial não é necessária agora.
+- Dependências aprovadas: httpx, openpyxl, pydantic-settings, psycopg, argon2-cffi, PyJWT, scipy, ruff, echarts. APScheduler e @playwright/test já estavam na stack.
+- Os 20 ativos de validação propostos foram aceitos (`TICKERS_ACOMPANHADOS` no `.env`).
+- Definições ambíguas: a resposta repetiu as opções sem escolher, então adotei as recomendações (cada uma pode ser trocada sem refazer o projeto):
+  - DY por **data-com**;
+  - JCP pelo valor **bruto**;
+  - taxa Y do Graham revisado = **Tesouro Prefixado mais longo** (usada na Fase 2);
+  - "Taxa Peter Lynch" = P/L justo igual ao crescimento, com teto (Fase 2).
+
+**D-013 — Indicadores básicos já na Fase 1** · 10/10/2026 · aprovada (pedido do usuário)
+A Fase 1 calcula e exibe os principais indicadores do tipo dos sites de análise (P/L, P/VP, PSR, EV/EBIT, EV/EBITDA, ROE, ROIC, ROA, margens, endividamento, liquidez, CAGR de 5 anos e, para FIIs, P/VP, VP/cota, patrimônio, cotistas e DY informado). Eles vêm de funções puras em `app/metodologias/` com testes. Nenhum dado é obtido de sites de terceiros: tudo sai das fontes oficiais.
+
+**D-014 — Múltiplos por ticker** · 10/10/2026 · aprovada
+P/L, P/VP e demais múltiplos de preço usam a cotação do próprio ticker × o total de ações em circulação (equivale a preço ÷ LPA). O valor de mercado e o EV usam a soma de cada classe × a sua cotação. Classe sem negociação é valorada pela cotação da outra classe, com aviso no número.
+
+**D-015 — COTAHIST prevalece sobre a brapi no mesmo pregão** · 10/10/2026 · aprovada
+O COTAHIST (B3) é a fonte oficial e sobrescreve a cotação da brapi para o mesmo dia. A brapi só preenche o pregão mais recente, enquanto o arquivo diário da B3 não chega.
+
+**D-016 — Precisão numérica e unicidade** · 10/10/2026 · aprovada
+Valores em `NUMERIC(30,10)`: com 6 casas, os índices eram arredondados de forma visível. A unicidade das linhas de demonstração usa `NULLS NOT DISTINCT`, porque linhas de balanço não têm data de início; sem isso a reingestão duplicava linhas (bug achado nos testes).
+
+**D-017 — Lote de ingestão aberto antes do download** · 10/10/2026 · aprovada
+Falhas de rede ficam registradas em `lote_ingestao` com status `erro`. Dados anteriores nunca são apagados.
+
+**D-018 — Indicadores de FII com base nos informes da CVM** · 10/10/2026 · aprovada
+Enquanto não há proventos (brapi paga), o DY por proventos do FII aparece como indisponível. O "DY informado" (soma dos percentuais mensais que o administrador declara à CVM) é mostrado à parte, com rótulo e limitação explícitos.
+
 ---
 
 ## Perguntas em aberto
+
+> Itens 1 a 5 e 15 respondidos na Fase 1 (D-012). Os demais seguem abertos.
 
 ### Fontes e custos
 1. **Cotações e proventos BR.** A recomendação é a brapi.dev, plano Startup (~R$ 100–120/mês), porque o plano gratuito não traz proventos.

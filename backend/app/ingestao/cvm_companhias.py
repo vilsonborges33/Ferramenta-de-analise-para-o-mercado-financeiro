@@ -129,16 +129,16 @@ def gravar_valores_mobiliarios(ctx: Contexto, registros: list[dict]) -> int:
 
 
 def ingerir_cadastro(sessao) -> int:
-    caminho, sha = baixar(URL_CADASTRO, "CVM_CADASTRO")
-    with lote(sessao, "CVM_CADASTRO", str(caminho)) as ctx:
-        ctx.lote.hash_arquivo = sha
+    with lote(sessao, "CVM_CADASTRO", URL_CADASTRO) as ctx:
+        caminho, ctx.lote.hash_arquivo = baixar(URL_CADASTRO, "CVM_CADASTRO")
         return gravar_cadastro(ctx, parse_cadastro(ler_csv_cvm(caminho)))
 
 
 def ingerir_valores_mobiliarios(sessao, ano: int) -> int:
-    caminho, sha = baixar(URL_FCA.format(ano=ano), "CVM_FCA")
-    with zipfile.ZipFile(caminho) as z, lote(sessao, "CVM_FCA", str(caminho)) as ctx:
-        ctx.lote.hash_arquivo = sha
+    url = URL_FCA.format(ano=ano)
+    with lote(sessao, "CVM_FCA", url) as ctx:
+        caminho, ctx.lote.hash_arquivo = baixar(url, "CVM_FCA")
+        z = zipfile.ZipFile(caminho)
         nome = f"fca_cia_aberta_valor_mobiliario_{ano}.csv"
         df = ler_csv_cvm(io.BytesIO(z.read(nome)))
         return gravar_valores_mobiliarios(ctx, parse_valores_mobiliarios(df))

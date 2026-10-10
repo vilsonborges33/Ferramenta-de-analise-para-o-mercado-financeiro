@@ -149,7 +149,8 @@ def processar_zip(ctx: Contexto, conteudo_zip: zipfile.ZipFile, documento: str, 
 
 def ingerir(sessao, documento: str, ano: int) -> int:
     codigo = f"CVM_{documento}"
-    caminho, sha = baixar(URLS[documento].format(ano=ano), codigo)
-    with zipfile.ZipFile(caminho) as z, lote(sessao, codigo, str(caminho)) as ctx:
-        ctx.lote.hash_arquivo = sha
-        return processar_zip(ctx, z, documento, ano)
+    url = URLS[documento].format(ano=ano)
+    with lote(sessao, codigo, url) as ctx:
+        caminho, ctx.lote.hash_arquivo = baixar(url, codigo)
+        with zipfile.ZipFile(caminho) as z:
+            return processar_zip(ctx, z, documento, ano)

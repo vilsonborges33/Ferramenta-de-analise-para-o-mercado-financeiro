@@ -9,3 +9,7 @@ htmlcov/
 node_modules/
 .next/
 dados_brutos/
+test-results/
+playwright-report/
+*.tsbuildinfo
+next-env.d.ts

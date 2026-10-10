@@ -1,8 +1,11 @@
 """Configuração lida do ambiente / arquivo .env."""
 
+import logging
+import secrets
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -31,6 +34,15 @@ class Configuracao(BaseSettings):
     diretorio_dados_brutos: Path = Path("dados_brutos")
     agendador_habilitado: bool = True
 
+
+    @field_validator("jwt_segredo")
+    @classmethod
+    def segredo_preenchido(cls, v: str) -> str:
+        if not v.strip():
+            # Sem segredo no .env: gera um aleatório (as sessões caem a cada reinício do backend).
+            logging.getLogger(__name__).warning("JWT_SEGREDO vazio: usando segredo aleatório temporário")
+            return secrets.token_hex(32)
+        return v
 
     @property
     def lista_tickers(self) -> list[str]:
