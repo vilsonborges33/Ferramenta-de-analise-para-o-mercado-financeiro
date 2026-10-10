@@ -1,0 +1,40 @@
+[project]
+name = "analise-mercado-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.143.0",
+  "uvicorn[standard]==0.54.0",
+  "sqlalchemy==2.1.4",
+  "alembic==1.20.0",
+  "pandas==3.0.6",
+  "psycopg[binary]==3.3.6",
+  "httpx==0.28.1",
+  "openpyxl==3.1.5",
+  "pydantic-settings==2.15.0",
+  "argon2-cffi==25.1.0",
+  "PyJWT==2.15.1",
+  "apscheduler==3.11.3",
+  "scipy==1.18.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==9.1.1", "pytest-cov==7.1.0", "ruff==0.17.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["B008"]  # Depends() em argumento padrão é o padrão do FastAPI

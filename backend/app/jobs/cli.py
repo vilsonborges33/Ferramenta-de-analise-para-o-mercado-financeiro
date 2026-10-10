@@ -1,0 +1,54 @@
+"""Linha de comando: `python -m app.jobs.cli <comando>`.
+
+Exemplos:
+  python -m app.jobs.cli carga-inicial --de 2019 --ate 2026
+  python -m app.jobs.cli macro
+  python -m app.jobs.cli indicadores --tickers PETR4 VALE3
+"""
+
+import argparse
+import logging
+from datetime import date
+
+from app.jobs import tarefas
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    p = argparse.ArgumentParser(prog="app.jobs.cli")
+    sub = p.add_subparsers(dest="comando", required=True)
+    c = sub.add_parser("carga-inicial")
+    c.add_argument("--de", type=int, default=date.today().year - 6)
+    c.add_argument("--ate", type=int, default=date.today().year)
+    sub.add_parser("companhias")
+    for nome in ("demonstracoes", "fiis", "cotacoes-historicas"):
+        s = sub.add_parser(nome)
+        s.add_argument("anos", type=int, nargs="+")
+    sub.add_parser("cotacoes-do-dia")
+    sub.add_parser("macro")
+    i = sub.add_parser("indicadores")
+    i.add_argument("--tickers", nargs="*")
+    a = p.parse_args()
+
+    tarefas.preparar()
+    match a.comando:
+        case "carga-inicial":
+            tarefas.carga_inicial(a.de, a.ate)
+        case "companhias":
+            tarefas.companhias()
+        case "demonstracoes":
+            tarefas.demonstracoes(a.anos)
+        case "fiis":
+            tarefas.fiis(a.anos)
+        case "cotacoes-historicas":
+            tarefas.cotacoes_historicas(a.anos)
+        case "cotacoes-do-dia":
+            tarefas.cotacoes_do_dia()
+        case "macro":
+            tarefas.macro()
+        case "indicadores":
+            tarefas.indicadores(a.tickers)
+
+
+if __name__ == "__main__":
+    main()
