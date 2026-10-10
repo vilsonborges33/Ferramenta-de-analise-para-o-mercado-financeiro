@@ -3,7 +3,7 @@
 import pytest
 
 from app.metodologias import indicadores_basicos as ib
-from app.metodologias.registro import METRICAS, POR_ID
+from app.metodologias.registro import POR_ID, TODAS
 
 
 def test_acoes_em_circulacao():
@@ -130,7 +130,9 @@ def test_liquidez_media_diaria():
 
 
 def test_registro_consistente():
-    assert len(POR_ID) == len(METRICAS), "ids duplicados no registro"
-    for m in METRICAS:
+    assert len(POR_ID) == len(TODAS), "ids duplicados no registro"
+    livros = {m.referencia for m in TODAS}
+    assert len(livros) == 10, livros  # os 10 livros de referência têm ao menos uma métrica
+    for m in TODAS:
         assert m.formula and m.referencia and m.unidade
         assert m.como_dict()["id"] == m.id

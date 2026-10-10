@@ -61,7 +61,7 @@ flowchart LR
 
 Regras de dependência entre módulos (verificadas por teste de importação na Fase 1):
 
-- `metodologias` não importa nada do projeto além de seus próprios tipos; só usa a biblioteca padrão, `numpy` e `pandas`.
+- `metodologias` não importa nada do projeto além de seus próprios tipos; só usa a biblioteca padrão, `numpy`, `pandas` e `scipy` (otimizações de carteira).
 - `ingestao` não importa `metodologias` nem `api`.
 - `api` só fala com `servicos`; nunca monta SQL nem calcula fórmula.
 

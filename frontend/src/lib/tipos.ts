@@ -57,5 +57,7 @@ export type Metrica = {
   referencia: string;
   aplica_a: string[];
   limitacoes: string[];
+  premissas: string[];
+  exibir_no_ativo: boolean;
   parametros: { chave: string; descricao: string; padrao: number; minimo: number; maximo: number }[];
 };

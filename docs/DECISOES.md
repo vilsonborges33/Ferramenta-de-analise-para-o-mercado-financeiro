@@ -79,6 +79,26 @@ Enquanto não há proventos (brapi paga), o DY por proventos do FII aparece como
 - Graham revisado: Y = Selic meta vigente.
 - Lynch: aviso de "crescimento atípico" acima de 25% a.a. ou com lucro-base muito baixo/negativo.
 
+## Fase 2
+
+**D-021 — Motor de metodologias completo, calculado sob demanda** · 10/10/2026 · aprovada
+As métricas dos 10 livros são funções puras em `backend/app/metodologias/` (um arquivo por livro/tema), todas no registro único com fórmula, premissas, parâmetros e limitações. Os métodos novos têm `exibir_no_ativo = False`: aparecem em "Como é calculado", mas só viram números na tela nas fases que os usam (screening na 3, valuation na 4, FIIs na 5, carteira na 6, longo prazo na 8). A pasta `docs/livros/` não existe; textos e parâmetros seguem as metodologias publicamente conhecidas, sem trechos dos livros.
+
+**D-022 — Regras objetivas onde o livro deixa espaço para julgamento** · 10/10/2026 · aprovada (padrões editáveis)
+- **Greenblatt:** capital de giro = (AC − caixa) − (PC − empréstimos de CP); quando negativo, conta como zero no capital empregado. EV ≤ 0 deixa o earnings yield indisponível e tira a empresa do ranking. Empate na soma: maior earnings yield primeiro.
+- **Lynch, categorias, em ordem de precedência:**
+  1. recuperação (último lucro ≤ 0 ou prejuízo nos 3 anos anteriores);
+  2. cíclica (setor da lista ou coeficiente de variação dos lucros > 0,5);
+  3. ativos ocultos (P/VP < 1);
+  4. crescimento rápido (≥ 20% a.a.);
+  5. robusta (10–20% a.a.);
+  6. crescimento lento (< 10% a.a.).
+- **Lynch, aviso de crescimento atípico:** também dispara quando o lucro-base é menor que 20% do lucro atual (efeito de base).
+- **Graham, checklist defensivo:** receita mínima de R$ 2 bi (adaptação de porte ao Brasil), liquidez corrente ≥ 2, dívida LP ≤ capital de giro, 10 anos de lucro, 20 anos de dividendos, LPA +33% em 10 anos (médias de 3 anos), P/L ≤ 15 sobre o LPA médio de 3 anos, P/VP ≤ 1,5 ou P/L × P/VP ≤ 22,5. Critério sem dados conta como não atendido e é marcado como indisponível.
+- **Bazin, critérios:** DL/PL ≤ 1 e proventos em todos os últimos 5 anos.
+- **FII, Gordon ajustado:** usa por padrão a taxa do Tesouro líquida de 15% de IR (rendimentos de FII são isentos para a pessoa física), com opção da taxa bruta.
+- **All Weather:** pesos de referência por classe (30/40/15/7,5/7,5), editáveis.
+
 ---
 
 ## Perguntas em aberto

@@ -82,7 +82,7 @@ def detalhe(sessao: Session, ticker: str) -> dict | None:
     grupos: dict[str, list[dict]] = {}
     for metrica in POR_ID.values():
         tipo = "FII" if ativo.classe == "FII" else "ACAO"
-        if tipo not in metrica.aplica_a:
+        if tipo not in metrica.aplica_a or not metrica.exibir_no_ativo:
             continue
         grupos.setdefault(metrica.grupo, []).append(numero(inds.get(metrica.id), metrica.id))
     info: dict = {"ticker": ativo.ticker, "classe": ativo.classe, "especie": ativo.especie, "isin": ativo.isin}

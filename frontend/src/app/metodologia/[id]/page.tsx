@@ -2,6 +2,14 @@ import { notFound } from "next/navigation";
 import { buscar } from "@/lib/api";
 import type { Metrica } from "@/lib/tipos";
 
+/** Parâmetros em fração (taxas, yields, alíquotas) aparecem em %; os demais como número. */
+function formatarParametro(valor: number, chave: string): string {
+  const percentual = /taxa_livre|yield|aliquota|limite/.test(chave);
+  return percentual
+    ? `${(valor * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`
+    : valor.toLocaleString("pt-BR");
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function Metodologia({ params }: { params: Promise<{ id: string }> }) {
@@ -19,14 +27,23 @@ export default async function Metodologia({ params }: { params: Promise<{ id: st
         <h2 className="text-sm font-semibold suave">Referência</h2>
         <p className="mt-1 text-sm">{m.referencia}</p>
       </section>
+      {m.premissas.length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold suave">Premissas</h2>
+          <ul className="mt-1 list-disc pl-5 text-sm">
+            {m.premissas.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </section>
+      )}
       {m.parametros.length > 0 && (
         <section>
           <h2 className="text-sm font-semibold suave">Parâmetros padrão</h2>
           <ul className="mt-1 list-disc pl-5 text-sm">
             {m.parametros.map((p) => (
               <li key={p.chave}>
-                {p.descricao}: {p.padrao.toLocaleString("pt-BR")} (de {p.minimo.toLocaleString("pt-BR")} a{" "}
-                {p.maximo.toLocaleString("pt-BR")})
+                {p.descricao}: {formatarParametro(p.padrao, p.chave)} (de {formatarParametro(p.minimo, p.chave)} a {formatarParametro(p.maximo, p.chave)})
               </li>
             ))}
           </ul>

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.sessao import obter_sessao
 from app.ingestao.bcb_sgs import SERIES
-from app.metodologias.registro import METRICAS, POR_ID
+from app.metodologias.registro import POR_ID, TODAS
 from app.servicos import consultas
 
 rotas = APIRouter(tags=["dados"])
@@ -44,7 +44,7 @@ def cotacoes(ticker: str, sessao: Session = Depends(obter_sessao)):
 
 @rotas.get("/metodologias")
 def metodologias():
-    return [m.como_dict() for m in METRICAS]
+    return [m.como_dict() for m in TODAS]
 
 
 @rotas.get("/metodologias/{metrica_id}")
