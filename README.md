@@ -17,11 +17,13 @@ docker compose up -d --build
 - Interface: http://localhost:3000
 - API: http://localhost:8000 (documentação interativa em http://localhost:8000/docs)
 
-O serviço `worker` agenda as atualizações diárias (horário de Brasília). Para a primeira carga
-(cadastro CVM, DFP/ITR, informes de FII, cotações COTAHIST, Selic/CDI/IPCA, Tesouro e indicadores):
+O serviço `worker` agenda as atualizações diárias (horário de Brasília). Numa instalação nova (banco
+sem demonstrações da CVM), ele roda a **carga inicial sozinho** logo ao subir: cadastro CVM, DFP/ITR
+dos últimos 6 anos, informes de FII, cotações COTAHIST, Selic/CDI/IPCA, Tesouro e indicadores.
+Acompanhe com `docker compose logs -f worker`. Para rodar manualmente:
 
 ```bash
-docker compose exec backend python -m app.jobs.cli carga-inicial --de 2019 --ate 2026
+docker compose exec backend python -m app.jobs.cli carga-inicial --de 2020 --ate 2026
 ```
 
 Outros comandos: `companhias`, `demonstracoes 2025 2026`, `fiis 2026`, `cotacoes-historicas 2026`,

@@ -86,7 +86,8 @@ export function TabelaAtivos({ itens, colunas, base }: Props) {
             {linhas.length === 0 && (
               <tr>
                 <td colSpan={colunas.length + 2} className="suave px-3 py-6 text-center">
-                  Nenhum ativo encontrado. Se a base ainda não foi carregada, rode a carga inicial (ver README).
+                  Nenhum ativo encontrado. Numa instalação nova, a primeira carga de dados roda sozinha e pode levar
+                  bastante tempo; deixe o Docker aberto e volte mais tarde.
                 </td>
               </tr>
             )}

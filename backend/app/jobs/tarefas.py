@@ -3,7 +3,10 @@
 import logging
 from datetime import date, timedelta
 
+from sqlalchemy import func, select
+
 from app.config import obter_configuracao
+from app.db.modelos import DemonstracaoLinha
 from app.db.sessao import FabricaSessao
 from app.ingestao import bcb_sgs, brapi, cotahist, cvm_companhias, cvm_demonstracoes, cvm_fii, tesouro
 from app.ingestao.base import garantir_fontes
@@ -67,6 +70,24 @@ def macro() -> None:
 
 def indicadores(tickers: list[str] | None = None) -> None:
     _executar("recálculo de indicadores", recalcular, tickers)
+
+
+def precisa_carga_inicial(sessao) -> bool:
+    """Verdadeiro enquanto nenhuma demonstração da CVM foi gravada (instalação nova ou carga interrompida)."""
+    return sessao.scalar(select(func.count()).select_from(DemonstracaoLinha)) == 0
+
+
+ANOS_CARGA_INICIAL = 6  # 6 anos de DFP permitem o CAGR de 5 anos
+
+
+def carga_inicial_se_vazio() -> None:
+    with FabricaSessao() as sessao:
+        if not precisa_carga_inicial(sessao):
+            return
+    ano = date.today().year
+    log.info("banco sem dados: iniciando a carga inicial (%s–%s); pode levar bastante tempo",
+             ano - ANOS_CARGA_INICIAL, ano)
+    carga_inicial(ano - ANOS_CARGA_INICIAL, ano)
 
 
 def carga_inicial(ano_inicial: int, ano_final: int) -> None:

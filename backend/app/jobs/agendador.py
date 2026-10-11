@@ -1,7 +1,7 @@
 """Processo `worker`: agenda as ingestões (docs/ARQUITETURA.md, seção 8). Horários de Brasília."""
 
 import logging
-from datetime import date
+from datetime import date, datetime
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -26,6 +26,8 @@ def main() -> None:
     agendador.add_job(tarefas.indicadores, CronTrigger(hour=5, minute=0, timezone=FUSO), id="indicadores_madrugada")
     agendador.add_job(tarefas.indicadores, CronTrigger(day_of_week="mon-fri", hour=21, minute=15, timezone=FUSO),
                       id="indicadores_noite")
+    # Instalação nova: a primeira carga roda sozinha logo após a subida do worker.
+    agendador.add_job(tarefas.carga_inicial_se_vazio, next_run_time=datetime.now(), id="carga_inicial")
     agendador.start()
 
 
