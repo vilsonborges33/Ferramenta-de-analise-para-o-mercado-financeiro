@@ -27,6 +27,12 @@ docker compose exec backend python -m app.jobs.cli carga-inicial --de 2019 --ate
 Outros comandos: `companhias`, `demonstracoes 2025 2026`, `fiis 2026`, `cotacoes-historicas 2026`,
 `cotacoes-do-dia`, `macro`, `indicadores --tickers PETR4 VALE3`.
 
+## Manter atualizado (Windows)
+
+Clone com Git uma única vez e, a cada atualização, dê dois cliques em `atualizar.bat`: ele baixa a
+versão mais recente (`git pull`) e reconstrói os containers. As migrações do banco rodam sozinhas
+quando o backend sobe; os dados já carregados são preservados.
+
 ## Desenvolvimento
 
 ```bash
