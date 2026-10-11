@@ -3,6 +3,7 @@
 Exemplos:
   python -m app.jobs.cli carga-inicial --de 2019 --ate 2026
   python -m app.jobs.cli macro
+  python -m app.jobs.cli proventos
   python -m app.jobs.cli indicadores --tickers PETR4 VALE3
 """
 
@@ -26,6 +27,8 @@ def main() -> None:
         s.add_argument("anos", type=int, nargs="+")
     sub.add_parser("cotacoes-do-dia")
     sub.add_parser("macro")
+    pv = sub.add_parser("proventos")
+    pv.add_argument("--dias-fnet", type=int, default=400)
     i = sub.add_parser("indicadores")
     i.add_argument("--tickers", nargs="*")
     a = p.parse_args()
@@ -46,6 +49,9 @@ def main() -> None:
             tarefas.cotacoes_do_dia()
         case "macro":
             tarefas.macro()
+        case "proventos":
+            tarefas.proventos(a.dias_fnet)
+            tarefas.indicadores()
         case "indicadores":
             tarefas.indicadores(a.tickers)
 

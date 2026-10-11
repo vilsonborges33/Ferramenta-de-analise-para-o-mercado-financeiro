@@ -116,6 +116,14 @@ Funcionou de primeira: cadastro CVM, FCA, DFP/ITR 2020–2026, informes de FII e
 - Valor intrínseco de Graham, preço teto de Bazin, PEG e preço justo de Lynch, e EY e ROC de Greenblatt passam a ser materializados por ação com os parâmetros padrão e aparecem na página do ativo, com o aviso.
 - Página **Status dos dados**: último lote de cada fonte e contagens (ações com cotação, empresas com balanço etc.), para diagnosticar a carga sem usar o terminal.
 
+**D-025 — Proventos pela B3 (ações) e pelo FNET (FIIs)** · 11/10/2026 · aprovada (usuário escolheu as opções 1 e 2)
+- Fontes gratuitas e oficiais, para uso pessoal, em vez da brapi paga. Sites de terceiros (Status Invest, Investidor10, Fundamentus) continuam descartados por proibirem coleta automática.
+- O vínculo do provento com o ticker é feito pelo ISIN (ações) ou pelo código de negociação/CNPJ do XML (FIIs).
+- A data de pagamento divulgada depois do anúncio é atualizada no reprocessamento.
+- Carga inicial: proventos B3 de todas as companhias e 13 meses de avisos do FNET. Atualização diária às 21h.
+- Quando a fonte já carregou com sucesso, um ativo sem provento na janela tem DY = 0 (e não "dado indisponível").
+- A brapi paga continua como plano B, caso a B3 mude as consultas.
+
 ---
 
 ## Perguntas em aberto

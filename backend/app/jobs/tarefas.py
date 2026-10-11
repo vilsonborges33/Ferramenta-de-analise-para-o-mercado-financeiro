@@ -9,7 +9,17 @@ from sqlalchemy import func, select
 from app.config import obter_configuracao
 from app.db.modelos import DemonstracaoLinha
 from app.db.sessao import FabricaSessao, motor
-from app.ingestao import bcb_sgs, brapi, cotahist, cvm_companhias, cvm_demonstracoes, cvm_fii, tesouro
+from app.ingestao import (
+    b3_proventos,
+    bcb_sgs,
+    brapi,
+    cotahist,
+    cvm_companhias,
+    cvm_demonstracoes,
+    cvm_fii,
+    fnet_rendimentos,
+    tesouro,
+)
 from app.ingestao.base import garantir_fontes
 from app.ingestao.padronizacao_db import padronizar_todas
 from app.servicos.indicadores import recalcular
@@ -62,6 +72,12 @@ def cotacoes_do_dia(dia: date | None = None) -> None:
     dia = dia or date.today()
     _executar(f"COTAHIST {dia}", cotahist.ingerir_dia, dia)
     _executar("brapi", brapi.ingerir, obter_configuracao().lista_tickers)
+
+
+def proventos(dias_fnet: int = 10) -> None:
+    """Proventos de ações (B3) e rendimentos de FII (FNET). Depende do ISIN gravado pelo COTAHIST."""
+    _executar("B3 proventos", b3_proventos.ingerir)
+    _executar("FNET rendimentos", fnet_rendimentos.ingerir, dias_fnet)
 
 
 def macro() -> None:
@@ -121,6 +137,7 @@ def _carga_inicial(ano_inicial: int, ano_final: int) -> None:
     demonstracoes(anos)
     fiis(anos)
     cotacoes_historicas(anos)
+    proventos(dias_fnet=400)  # 13 meses: cobre a janela de 12 meses do DY por data de pagamento
     macro()
     cotacoes_do_dia()
     indicadores()

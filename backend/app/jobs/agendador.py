@@ -19,6 +19,7 @@ def main() -> None:
     agendador.add_job(tarefas.macro, CronTrigger(hour=20, minute=0, timezone=FUSO), id="macro")
     agendador.add_job(tarefas.cotacoes_do_dia, CronTrigger(day_of_week="mon-fri", hour=20, minute=30,
                                                             timezone=FUSO), id="cotacoes")
+    agendador.add_job(tarefas.proventos, CronTrigger(hour=21, minute=0, timezone=FUSO), id="proventos")
     agendador.add_job(lambda: tarefas.companhias(), CronTrigger(hour=2, minute=0, timezone=FUSO), id="companhias")
     agendador.add_job(lambda: tarefas.demonstracoes(ano()), CronTrigger(hour=3, minute=0, timezone=FUSO),
                       id="demonstracoes")

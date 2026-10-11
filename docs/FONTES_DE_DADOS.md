@@ -32,6 +32,12 @@
   - **Conclusão:** área cinzenta para um app pago. Adequado para desenvolvimento e validação; antes de monetizar, consultar a B3.
 - **Proventos:** não foi encontrada fonte oficial aberta e estruturada da B3 (a confirmar). Por isso, os proventos dependem do provedor de cotações.
 
+### Proventos (adotado em 11/10/2026 — DECISOES.md D-025)
+
+- **Ações — B3, "Empresas listadas → Eventos corporativos".** Consulta pública usada pelo próprio site da B3 (`GetListedSupplementCompany`, parâmetro em base64 com o código de 4 letras da companhia). Traz, por ISIN, os proventos em dinheiro (dividendos, JCP, rendimentos), com data de aprovação, data-com e data de pagamento. Não é documentada: pode mudar sem aviso. Uso pessoal; uso comercial exigiria licença da B3.
+- **FIIs — FNET, "Aviso aos Cotistas – Estruturado / Rendimentos e Amortizações".** XML estruturado entregue pelo administrador do fundo, com valor por cota, data-base e data de pagamento. A listagem é a consulta pública do site do FNET (não documentada). Cada documento é baixado uma única vez.
+- Ambas: uma requisição por companhia ou documento, com pausa entre elas; falhas isoladas não interrompem a carga e ficam registradas em "Status dos dados".
+
 ## 3. Banco Central — API SGS
 
 - **Endpoint:** `https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados?formato=json&dataInicial=dd/MM/aaaa&dataFinal=dd/MM/aaaa`.

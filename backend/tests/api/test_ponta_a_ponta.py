@@ -61,7 +61,7 @@ def test_indicadores_da_acao(cliente):
     assert ind["basico.liquidez_diaria"]["valor"] == pytest.approx(5_000_000)
     # sem proventos ingeridos: indisponível com motivo, nunca estimado
     assert ind["basico.dy"]["valor"] is None
-    assert "brapi" in ind["basico.dy"]["motivo_indisponivel"]
+    assert "B3" in ind["basico.dy"]["motivo_indisponivel"]
     # procedência de cada insumo
     fontes = {p["fonte"] for p in ind["basico.p_l"]["procedencia"]}
     assert fontes == {"B3_COTAHIST", "CVM_DFP"}

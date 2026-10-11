@@ -22,6 +22,7 @@ from app.db.modelos import (
     FiiInformeMensal,
     Fonte,
     IndicadorCalculado,
+    LoteIngestao,
     Provento,
 )
 from app.metodologias import bazin, graham, lynch
@@ -32,8 +33,8 @@ from app.metodologias.registro import POR_ID
 from app.metodologias.tipos import Resultado, indisponivel
 
 PREGOES_LIQUIDEZ = 42  # ~2 meses de pregões
-MOTIVO_SEM_PROVENTOS = ("proventos não ingeridos: o plano gratuito da brapi não inclui proventos "
-                        "(habilitar com plano pago)")
+MOTIVO_SEM_PROVENTOS = ("proventos não ingeridos: a carga de proventos (B3 para ações, FNET para FIIs) "
+                        "ainda não rodou com sucesso")
 
 
 @dataclass
@@ -62,6 +63,7 @@ class Calculadora:
     def __init__(self, sessao: Session):
         self.sessao = sessao
         self.fontes = {f.id: f.codigo for f in sessao.scalars(select(Fonte))}
+        self._fontes_proventos: dict[str, bool] = {}
 
     # ------------------------------------------------------------- consultas
 
@@ -77,9 +79,22 @@ class Calculadora:
         return list(self.sessao.scalars(select(CotacaoDiaria).where(CotacaoDiaria.ativo_id == ativo_id)
                                         .order_by(desc(CotacaoDiaria.data)).limit(PREGOES_LIQUIDEZ)))
 
-    def proventos_12m(self, ativo_id: int, referencia: date) -> tuple[float | None, list[Provento], str | None]:
+    def _fonte_de_proventos_carregada(self, classe: str) -> bool:
+        """Verdadeiro se a fonte de proventos da classe já rodou com sucesso ao menos uma vez.
+
+        Com a fonte carregada, ausência de provento na janela significa DY = 0 (e não dado indisponível).
+        """
+        if classe not in self._fontes_proventos:
+            codigo = "FNET_RENDIMENTOS" if classe == "FII" else "B3_PROVENTOS"
+            ok = self.sessao.scalar(select(func.count()).select_from(LoteIngestao).join(Fonte).where(
+                Fonte.codigo == codigo, LoteIngestao.status == "concluido", LoteIngestao.linhas_gravadas > 0))
+            self._fontes_proventos[classe] = bool(ok) or obter_configuracao().brapi_proventos_habilitado
+        return self._fontes_proventos[classe]
+
+    def proventos_12m(self, ativo_id: int, referencia: date, classe: str = "ACAO"
+                      ) -> tuple[float | None, list[Provento], str | None]:
         existe = self.sessao.scalar(select(func.count()).select_from(Provento).where(Provento.ativo_id == ativo_id))
-        if not existe and not obter_configuracao().brapi_proventos_habilitado:
+        if not existe and not self._fonte_de_proventos_carregada(classe):
             return None, [], MOTIVO_SEM_PROVENTOS
         lista = list(self.sessao.scalars(select(Provento).where(
             # Janela pela data de pagamento (DECISOES.md D-020); sem data de pagamento = ainda não pago.
@@ -304,7 +319,7 @@ class Calculadora:
         i_preco = self._insumo("preco", preco, cotacao, data_pregao=cotacao.data.isoformat()) if cotacao else None
         calculos = [self._liquidez(ativo)]
         referencia = cotacao.data if cotacao else date.today()
-        soma, proventos, motivo = self.proventos_12m(ativo.id, referencia)
+        soma, proventos, motivo = self.proventos_12m(ativo.id, referencia, "FII")
         if motivo:
             calculos.append(Calculo("basico.dy", indisponivel(motivo), [i_preco] if i_preco else [], referencia))
         else:

@@ -40,6 +40,12 @@ FONTES: tuple[DefinicaoFonte, ...] = (
     DefinicaoFonte("B3_COTAHIST", "B3 — Séries históricas de cotações (COTAHIST)",
                    "https://www.b3.com.br/pt_br/market-data-e-indices/servicos-de-dados/market-data/historico/"
                    "mercado-a-vista/series-historicas/", "Política de Market Data B3 (uso pessoal)"),
+    DefinicaoFonte("B3_PROVENTOS", "B3 — Proventos em dinheiro das companhias listadas",
+                   "https://www.b3.com.br/pt_br/produtos-e-servicos/negociacao/renda-variavel/empresas-listadas.htm",
+                   "Dados públicos da B3 (uso pessoal; consulta não documentada)"),
+    DefinicaoFonte("FNET_RENDIMENTOS", "B3 FNET — Avisos aos cotistas estruturados (rendimentos de FII)",
+                   "https://fnet.bmfbovespa.com.br/fnet/publico/abrirGerenciadorDocumentosCVM",
+                   "Documentos públicos de fundos (uso pessoal)"),
     DefinicaoFonte("BRAPI", "brapi.dev — cotações e proventos", "https://brapi.dev",
                    "Termos brapi: exibição no próprio app, sem redistribuição"),
     DefinicaoFonte("BCB_SGS", "Banco Central — SGS", "https://dadosabertos.bcb.gov.br", "ODbL"),

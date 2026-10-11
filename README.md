@@ -26,7 +26,7 @@ Acompanhe com `docker compose logs -f worker`. Para rodar manualmente:
 docker compose exec backend python -m app.jobs.cli carga-inicial --de 2020 --ate 2026
 ```
 
-Outros comandos: `companhias`, `demonstracoes 2025 2026`, `fiis 2026`, `cotacoes-historicas 2026`,
+Outros comandos: `proventos` (B3 + FNET, depois recalcula os indicadores), `companhias`, `demonstracoes 2025 2026`, `fiis 2026`, `cotacoes-historicas 2026`,
 `cotacoes-do-dia`, `macro`, `indicadores --tickers PETR4 VALE3`.
 
 ## Manter atualizado (Windows)
