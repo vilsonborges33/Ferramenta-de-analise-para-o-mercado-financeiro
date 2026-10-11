@@ -8,14 +8,18 @@ export default function Inicio() {
         Cada número exibido mostra a fórmula usada, o livro ou autor que a fundamenta e a fonte e a data do
         dado bruto. Toque no ícone ⓘ ao lado de qualquer indicador para ver a procedência.
       </p>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Link href="/acoes" className="cartao p-4 hover:shadow">
           <div className="font-medium">Ações</div>
-          <div className="text-sm suave">P/L, P/VP, ROE, margens, endividamento e mais.</div>
+          <div className="text-sm suave">Busque pelo ticker ou nome e veja todos os indicadores.</div>
         </Link>
         <Link href="/fiis" className="cartao p-4 hover:shadow">
           <div className="font-medium">Fundos imobiliários</div>
           <div className="text-sm suave">P/VP, patrimônio, cotistas e liquidez.</div>
+        </Link>
+        <Link href="/mais-baratas" className="cartao p-4 hover:shadow">
+          <div className="font-medium">Mais baratas</div>
+          <div className="text-sm suave">Rankings de Greenblatt, Graham, Bazin e Lynch.</div>
         </Link>
         <Link href="/metodologia" className="cartao p-4 hover:shadow">
           <div className="font-medium">Como é calculado</div>

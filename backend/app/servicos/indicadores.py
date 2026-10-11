@@ -24,7 +24,9 @@ from app.db.modelos import (
     IndicadorCalculado,
     Provento,
 )
+from app.metodologias import bazin, graham, lynch
 from app.metodologias import fii as mfii
+from app.metodologias import greenblatt as gb
 from app.metodologias import indicadores_basicos as ib
 from app.metodologias.registro import POR_ID
 from app.metodologias.tipos import Resultado, indisponivel
@@ -172,8 +174,10 @@ class Calculadora:
         add("basico.ev", nao_aplica(ev), base + i_div + i_caixa)
         lpa_r = ib.lpa(lucro, acoes.valor)
         add("basico.lpa", lpa_r, [i_lucro, i_acoes])
-        add("basico.vpa", ib.vpa(pl, acoes.valor), [i_pl, i_acoes])
-        add("basico.p_l", ib.p_l(vm_ticker, lucro), base + [i_lucro])
+        vpa_r = ib.vpa(pl, acoes.valor)
+        add("basico.vpa", vpa_r, [i_pl, i_acoes])
+        p_l_r = ib.p_l(vm_ticker, lucro)
+        add("basico.p_l", p_l_r, base + [i_lucro])
         add("basico.p_vp", ib.p_vp(vm_ticker, pl), base + [i_pl])
         add("basico.p_receita", ib.p_receita(vm_ticker, receita), base + [i_rec])
         add("basico.p_ebit", nao_aplica(ib.p_ebit(vm_ticker, ebit_)), base + [i_ebit])
@@ -221,8 +225,30 @@ class Calculadora:
         add("basico.liquidez_corrente", nao_aplica(ib.liquidez_corrente(c.get("ativo_circulante"),
                                                                         c.get("passivo_circulante"))), [i_ac, i_pc])
 
-        calculos.extend(self._cagr(empresa))
+        cagrs = self._cagr(empresa)
+        calculos.extend(cagrs)
         calculos.append(self._liquidez(ativo))
+
+        # Métodos dos livros com os parâmetros padrão (o ranking recalcula com os do usuário).
+        caixa = c.get("caixa_equivalentes")
+        caixa_total = None if caixa is None else caixa + (c.get("aplicacoes_financeiras") or 0)
+        cg = gb.capital_giro_liquido(c.get("ativo_circulante"), caixa_total, c.get("passivo_circulante"),
+                                     c.get("emprestimos_cp"))
+        add("greenblatt.earnings_yield", nao_aplica(gb.earnings_yield(ebit_, ev.valor)),
+            base + i_div + i_caixa + [i_ebit])
+        add("greenblatt.retorno_capital", nao_aplica(gb.retorno_sobre_capital(ebit_, cg.valor, c.get("imobilizado"))),
+            [i_ebit, i_ac, i_pc, contabil("imobilizado")] + i_caixa + i_div)
+        vi = graham.valor_intrinseco(lpa_r.valor, vpa_r.valor)
+        add("graham.valor_intrinseco", vi, [i_lucro, i_pl, i_acoes])
+        add("graham.margem_seguranca", graham.margem_seguranca(vi.valor, preco), [i_preco, i_lucro, i_pl, i_acoes])
+        cagr_lucro = next(x for x in cagrs if x.metrica == "basico.cagr_lucro_5a")
+        g = cagr_lucro.resultado.valor
+        extremos = [i.valor for i in cagr_lucro.insumos] or [None, None]
+        add("lynch.peg", lynch.peg(p_l_r.valor, g) if g is not None else cagr_lucro.resultado,
+            base + [i_lucro] + cagr_lucro.insumos)
+        add("lynch.preco_justo", lynch.preco_justo(lpa_r.valor, g, extremos[0], extremos[-1])
+            if g is not None else cagr_lucro.resultado, [i_lucro, i_acoes] + cagr_lucro.insumos)
+        add("bazin.preco_teto", indisponivel(motivo) if motivo else bazin.preco_teto(soma), i_prov, referencia)
         return calculos
 
     def _precos_por_especie(self, empresa: Empresa) -> dict[str, float]:

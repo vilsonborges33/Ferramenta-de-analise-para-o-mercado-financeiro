@@ -165,7 +165,12 @@ def _metodo(id_: str, nome: str, grupo: str, unidade: str, formula: str, referen
             premissas: tuple[str, ...] = (), limitacoes: tuple[str, ...] = (),
             parametros: tuple[Parametro, ...] = (), aplica_a: tuple[str, ...] = ("ACAO",)) -> Metrica:
     return Metrica(id_, nome, grupo, unidade, formula, referencia, aplica_a, limitacoes, parametros, premissas,
-                   exibir_no_ativo=False)
+                   exibir_no_ativo=id_ in NA_PAGINA_DO_ATIVO)
+
+
+# Métodos já materializados por ativo (com parâmetros padrão) e exibidos na página do ativo.
+NA_PAGINA_DO_ATIVO = {"graham.valor_intrinseco", "graham.margem_seguranca", "bazin.preco_teto", "lynch.peg",
+                      "lynch.preco_justo", "greenblatt.earnings_yield", "greenblatt.retorno_capital"}
 
 
 _YIELD_BAZIN = Parametro("yield_minimo", "Yield mínimo exigido (Taxa Bazin)", 0.06, 0.01, 0.30)

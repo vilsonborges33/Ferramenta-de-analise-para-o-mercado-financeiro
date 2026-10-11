@@ -6,17 +6,18 @@ import { Numero } from "@/componentes/Numero";
 import { formatarValor } from "@/lib/formato";
 import type { ItemLista } from "@/lib/tipos";
 
-type Props = { itens: ItemLista[]; colunas: { id: string; rotulo: string }[]; base: "acoes" | "fiis" };
+type Props = {
+  itens: ItemLista[];
+  colunas: { id: string; rotulo: string }[];
+  base: "acoes" | "fiis";
+  vazio: string;
+};
 
-export function TabelaAtivos({ itens, colunas, base }: Props) {
-  const [busca, setBusca] = useState("");
+export function TabelaAtivos({ itens, colunas, base, vazio }: Props) {
   const [ordem, setOrdem] = useState<{ coluna: string; asc: boolean }>({ coluna: "ticker", asc: true });
 
   const linhas = useMemo(() => {
-    const termo = busca.trim().toUpperCase();
-    const filtradas = itens.filter(
-      (i) => !termo || i.ticker.includes(termo) || (i.nome ?? "").toUpperCase().includes(termo),
-    );
+    const filtradas = itens;
     const valor = (i: ItemLista): number | string | null => {
       if (ordem.coluna === "ticker") return i.ticker;
       if (ordem.coluna === "cotacao") return i.cotacao?.valor ?? null;
@@ -30,7 +31,7 @@ export function TabelaAtivos({ itens, colunas, base }: Props) {
       const cmp = va < vb ? -1 : va > vb ? 1 : 0;
       return ordem.asc ? cmp : -cmp;
     });
-  }, [itens, busca, ordem]);
+  }, [itens, ordem]);
 
   const cabecalho = (id: string, rotulo: string) => (
     <th key={id} className="whitespace-nowrap px-3 py-2 text-right font-medium first:text-left">
@@ -47,14 +48,6 @@ export function TabelaAtivos({ itens, colunas, base }: Props) {
 
   return (
     <div className="space-y-3">
-      <input
-        type="search"
-        value={busca}
-        onChange={(e) => setBusca(e.target.value)}
-        placeholder="Buscar por ticker ou nome"
-        className="cartao w-full px-3 py-2 text-sm sm:w-80"
-        aria-label="Buscar"
-      />
       <div className="cartao overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="suave">
@@ -86,8 +79,7 @@ export function TabelaAtivos({ itens, colunas, base }: Props) {
             {linhas.length === 0 && (
               <tr>
                 <td colSpan={colunas.length + 2} className="suave px-3 py-6 text-center">
-                  Nenhum ativo encontrado. Numa instalação nova, a primeira carga de dados roda sozinha e pode levar
-                  bastante tempo; deixe o Docker aberto e volte mais tarde.
+                  {vazio}
                 </td>
               </tr>
             )}

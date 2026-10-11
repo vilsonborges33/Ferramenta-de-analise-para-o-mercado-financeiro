@@ -1,14 +1,17 @@
 """Leitura dos dados para a API, sempre com a procedência de cada número."""
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.modelos import (
     Ativo,
     CotacaoDiaria,
+    DemonstracaoPadronizada,
+    Empresa,
     Fii,
     Fonte,
     IndicadorCalculado,
+    LoteIngestao,
     SerieEconomica,
     TituloTesouroTaxa,
 )
@@ -51,26 +54,71 @@ def _cotacao(sessao: Session, ativo_id: int, fontes: dict[int, str]) -> dict | N
             "coletado_em": c.coletado_em.isoformat()}
 
 
+BUSCA_MINIMA = 2
+LIMITE_BUSCA = 20
+
+
 def listar(sessao: Session, classe: str, busca: str | None = None) -> list[dict]:
-    consulta = select(Ativo).where(Ativo.classe == classe, Ativo.ativo.is_(True)).order_by(Ativo.ticker)
-    if busca:
-        consulta = consulta.where(Ativo.ticker.ilike(f"%{busca.strip()}%"))
-    ativos = list(sessao.scalars(consulta))
+    """Busca por ticker ou nome (mínimo de 2 letras). Sem busca, não lista nada: a listagem geral
+    fica no ranking "Mais baratas"."""
+    termo = (busca or "").strip()
+    if len(termo) < BUSCA_MINIMA:
+        return []
+    consulta = (select(Ativo)
+                .outerjoin(Empresa, Empresa.id == Ativo.empresa_id).outerjoin(Fii, Fii.ativo_id == Ativo.id)
+                .where(Ativo.classe == classe, Ativo.ativo.is_(True),
+                       or_(Ativo.ticker.ilike(f"{termo}%"), Empresa.nome.ilike(f"%{termo}%"),
+                           Fii.nome.ilike(f"%{termo}%")))
+                .order_by(Ativo.ticker).limit(LIMITE_BUSCA))
+    ativos = list(sessao.scalars(consulta).unique())
     inds = _indicadores(sessao, [a.id for a in ativos])
     fontes = {f.id: f.codigo for f in sessao.scalars(select(Fonte))}
     colunas = COLUNAS_LISTA_FIIS if classe == "FII" else COLUNAS_LISTA_ACOES
-    nomes_fii = {f.ativo_id: f.nome for f in sessao.scalars(select(Fii).where(Fii.ativo_id.is_not(None)))}
+    ids = [a.id for a in ativos]
+    nomes_fii = {f.ativo_id: f.nome for f in sessao.scalars(select(Fii).where(Fii.ativo_id.in_(ids)))}
     saida = []
     for a in ativos:
-        if a.id not in inds:  # sem nenhum dado calculado ainda
-            continue
         nome = nomes_fii.get(a.id) if classe == "FII" else (a.empresa.nome if a.empresa else None)
         saida.append({
             "ticker": a.ticker, "nome": nome, "setor": a.empresa.setor if a.empresa else None,
             "cotacao": _cotacao(sessao, a.id, fontes),
-            "indicadores": {m: numero(inds[a.id].get(m), m) for m in colunas},
+            "indicadores": {m: numero(inds.get(a.id, {}).get(m), m) for m in colunas},
         })
     return saida
+
+
+def status_dados(sessao: Session) -> dict:
+    """Situação da carga: último lote de cada fonte e contagens que mostram se os dados chegaram."""
+    fontes = list(sessao.scalars(select(Fonte).order_by(Fonte.id)))
+    lotes = []
+    for f in fontes:
+        ultimo = sessao.scalar(select(LoteIngestao).where(LoteIngestao.fonte_id == f.id)
+                               .order_by(LoteIngestao.id.desc()).limit(1))
+        ultimo_ok = sessao.scalar(select(LoteIngestao.concluido_em)
+                                  .where(LoteIngestao.fonte_id == f.id, LoteIngestao.status == "concluido")
+                                  .order_by(LoteIngestao.id.desc()).limit(1))
+        lotes.append({
+            "fonte": f.codigo, "nome": f.nome,
+            "status": ultimo.status if ultimo else "nunca executado",
+            "quando": ultimo.concluido_em.isoformat() if ultimo and ultimo.concluido_em else None,
+            "linhas": ultimo.linhas_gravadas if ultimo else 0,
+            "mensagem": (ultimo.erro or "")[:300] if ultimo else None,
+            "ultimo_sucesso": ultimo_ok.isoformat() if ultimo_ok else None,
+        })
+    contar = lambda consulta: sessao.scalar(consulta) or 0  # noqa: E731
+    contagens = {
+        "empresas": contar(select(func.count()).select_from(Empresa)),
+        "acoes": contar(select(func.count()).select_from(Ativo).where(Ativo.classe == "ACAO")),
+        "acoes_com_cotacao": contar(select(func.count(func.distinct(CotacaoDiaria.ativo_id)))
+                                    .join(Ativo, Ativo.id == CotacaoDiaria.ativo_id).where(Ativo.classe == "ACAO")),
+        "ultima_cotacao": (lambda d: d.isoformat() if d else None)(sessao.scalar(select(func.max(CotacaoDiaria.data)))),
+        "empresas_com_balanco": contar(select(func.count(func.distinct(DemonstracaoPadronizada.empresa_id)))),
+        "fiis": contar(select(func.count()).select_from(Fii)),
+        "fiis_com_ticker": contar(select(func.count()).select_from(Fii).where(Fii.ativo_id.is_not(None))),
+        "indicadores_disponiveis": contar(select(func.count()).select_from(IndicadorCalculado)
+                                          .where(IndicadorCalculado.valor.is_not(None))),
+    }
+    return {"fontes": lotes, "contagens": contagens}
 
 
 def detalhe(sessao: Session, ticker: str) -> dict | None:
@@ -115,7 +163,6 @@ def serie(sessao: Session, codigo: str, desde=None) -> list[dict]:
 
 
 def taxas_tesouro(sessao: Session) -> list[dict]:
-    from sqlalchemy import func
     ultima = sessao.scalar(select(func.max(TituloTesouroTaxa.data_base)))
     if ultima is None:
         return []

@@ -48,5 +48,8 @@ def test_indicadores_do_fii(cliente):
     assert ind["basico.dy"]["valor"] is None
     assert {p["fonte"] for p in ind["fii.p_vp"]["procedencia"]} == {"B3_COTAHIST", "CVM_FII_MENSAL"}
     assert "basico.p_l" not in ind  # indicadores de empresa não aparecem para FII
-    assert cliente.get("/fiis").json()[0]["ticker"] == "HGLG11"
+    assert cliente.get("/fiis").json() == []
+    assert cliente.get("/fiis", params={"busca": "hglg"}).json()[0]["ticker"] == "HGLG11"
+    assert cliente.get("/fiis", params={"busca": "logística"}).json() == []  # nome do fundo: "FII EXEMPLO"
+    assert cliente.get("/fiis", params={"busca": "exemplo"}).json()[0]["ticker"] == "HGLG11"
     assert cliente.get("/acoes/HGLG11").status_code == 404

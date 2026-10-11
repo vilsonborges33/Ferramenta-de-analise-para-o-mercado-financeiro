@@ -74,16 +74,71 @@ def test_pl_por_ticker_usa_a_propria_cotacao(cliente):
     assert ind["basico.p_l"]["valor"] == pytest.approx(12)
 
 
-def test_lista_e_buscas(cliente):
-    lista = cliente.get("/acoes").json()
-    assert {a["ticker"] for a in lista} == {"BEXM3", "EXMP3", "EXMP4"}
-    exmp3 = next(a for a in lista if a["ticker"] == "EXMP3")
+def test_busca_so_lista_quando_digita(cliente):
+    assert cliente.get("/acoes").json() == []  # sem busca não lista nada
+    assert cliente.get("/acoes", params={"busca": "e"}).json() == []  # mínimo de 2 letras
+    por_ticker = cliente.get("/acoes", params={"busca": "exmp"}).json()
+    assert [a["ticker"] for a in por_ticker] == ["EXMP3", "EXMP4"]
+    exmp3 = por_ticker[0]
     assert exmp3["cotacao"]["fonte"] == "B3_COTAHIST"
     assert exmp3["indicadores"]["basico.p_l"]["valor"] == pytest.approx(10)
-    assert cliente.get("/acoes", params={"busca": "mp4"}).json()[0]["ticker"] == "EXMP4"
+    por_nome = cliente.get("/acoes", params={"busca": "banco exemplo"}).json()
+    assert [a["ticker"] for a in por_nome] == ["BEXM3"]
     assert cliente.get("/acoes/NAOEXISTE").status_code == 404
     assert cliente.get("/fiis/EXMP3").status_code == 404
     assert len(cliente.get("/ativos/EXMP3/cotacoes").json()) == 1
+
+
+def test_ranking_graham(cliente):
+    r = cliente.get("/ranking/acoes", params={"metodo": "graham"}).json()
+    assert "Não constituem recomendação" in r["aviso"]
+    # LPA 1, VPA 5 → √(22,5 × 1 × 5) = 10,61; EXMP3 a R$ 10 tem desconto, EXMP4 a R$ 12 não
+    primeiro = r["itens"][0]
+    assert primeiro["ticker"] == "EXMP3" and primeiro["posicao"] == 1
+    assert primeiro["valor_justo"] == pytest.approx((22.5 * 5) ** 0.5)
+    assert primeiro["desconto"] == pytest.approx(1 - 10 / (22.5 * 5) ** 0.5)
+    assert r["itens"][1]["desconto"] < 0
+    assert r["excluidos"]["sem cotação"] == 1  # BEXM3
+    # parâmetro do usuário: Taxa Graham 10 → √50 = 7,07 (as duas ficam acima do valor)
+    r2 = cliente.get("/ranking/acoes", params={"metodo": "graham", "fator_graham": 10}).json()
+    assert r2["itens"][0]["valor_justo"] == pytest.approx(50 ** 0.5)
+    # liquidez mínima acima da de todos → ranking vazio
+    r3 = cliente.get("/ranking/acoes", params={"metodo": "graham", "liquidez_minima": 1e9}).json()
+    assert r3["itens"] == [] and r3["excluidos"]["liquidez abaixo do mínimo"] == 2
+
+
+def test_ranking_greenblatt_e_exclusoes(cliente):
+    padrao = cliente.get("/ranking/acoes", params={"metodo": "greenblatt"}).json()
+    assert padrao["itens"] == [] and padrao["excluidos"]["utility"] == 2  # setor Energia Elétrica
+    r = cliente.get("/ranking/acoes", params={"metodo": "greenblatt", "excluir_utilities": False}).json()
+    item = r["itens"][0]
+    # EBIT 1,6 mi; EV 12,2 mi; capital = (3,0 − 0,6) − (1,5 − 0,4) + 2,0 imobilizado = 3,3 mi
+    assert item["earnings_yield"] == pytest.approx(1.6 / 12.2)
+    assert item["retorno_capital"] == pytest.approx(1.6 / 3.3)
+    assert item["soma_posicoes"] >= 2
+
+
+def test_ranking_bazin_e_lynch_sem_dados(cliente):
+    bazin = cliente.get("/ranking/acoes", params={"metodo": "bazin"}).json()
+    assert bazin["itens"] == [] and "proventos não ingeridos" in bazin["excluidos"]
+    lynch = cliente.get("/ranking/acoes", params={"metodo": "lynch"}).json()
+    assert lynch["itens"] == []  # lucro estável → crescimento 0, preço justo de Lynch não se aplica
+    assert cliente.get("/ranking/acoes", params={"metodo": "xyz"}).status_code == 422
+
+
+def test_metodos_na_pagina_do_ativo(cliente):
+    ind = indicadores(cliente.get("/acoes/EXMP3").json())
+    assert ind["graham.valor_intrinseco"]["valor"] == pytest.approx((22.5 * 5) ** 0.5)
+    assert ind["greenblatt.retorno_capital"]["valor"] == pytest.approx(1.6 / 3.3)
+    assert ind["bazin.preco_teto"]["valor"] is None
+    assert "dcf.valor" not in ind  # métodos sob demanda não aparecem como card
+
+
+def test_status_dos_dados(cliente):
+    s = cliente.get("/status").json()
+    fontes = {f["fonte"]: f for f in s["fontes"]}
+    assert fontes["CVM_DFP"]["status"] == "concluido" and fontes["BCB_SGS"]["status"] == "nunca executado"
+    assert s["contagens"]["acoes_com_cotacao"] == 2 and s["contagens"]["empresas_com_balanco"] == 1
 
 
 def test_banco_indicadores_nao_aplicaveis(cliente, sessao):

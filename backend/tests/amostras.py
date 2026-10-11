@@ -52,7 +52,8 @@ def zip_dfp(ano: int, receita: float, lucro: float, versao_extra: bool = False) 
             ("3.11.01", "Atribuído a Sócios da Empresa Controladora", lucro)]),
         f"dfp_cia_aberta_BPA_con_{ano}.csv": _demo("BPA", fim, None, fim, [
             ("1", "Ativo Total", 10000), ("1.01", "Ativo Circulante", 3000),
-            ("1.01.01", "Caixa e Equivalentes de Caixa", 500), ("1.01.02", "Aplicações Financeiras", 100)]),
+            ("1.01.01", "Caixa e Equivalentes de Caixa", 500), ("1.01.02", "Aplicações Financeiras", 100),
+            ("1.02.03", "Imobilizado", 2000)]),
         f"dfp_cia_aberta_BPP_con_{ano}.csv": _demo("BPP", fim, None, fim, [
             ("2.01", "Passivo Circulante", 1500), ("2.01.04", "Empréstimos e Financiamentos", 400),
             ("2.02.01", "Empréstimos e Financiamentos", 1600), ("2.03", "Patrimônio Líquido Consolidado", 5000)]),

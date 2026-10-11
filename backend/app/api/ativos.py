@@ -1,12 +1,13 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db.sessao import obter_sessao
 from app.ingestao.bcb_sgs import SERIES
 from app.metodologias.registro import POR_ID, TODAS
-from app.servicos import consultas
+from app.servicos import consultas, ranking
+from app.servicos.ranking import METODOS, Parametros
 
 rotas = APIRouter(tags=["dados"])
 
@@ -66,3 +67,26 @@ def serie(codigo: str, desde: date | None = None, sessao: Session = Depends(obte
 @rotas.get("/tesouro/taxas")
 def tesouro(sessao: Session = Depends(obter_sessao)):
     return {"fonte": "TESOURO_TD", "titulos": consultas.taxas_tesouro(sessao)}
+
+
+@rotas.get("/ranking/acoes")
+def ranking_acoes(
+    metodo: str = "greenblatt",
+    liquidez_minima: float = Query(1_000_000, ge=0),
+    yield_bazin: float = Query(0.06, gt=0, le=0.5),
+    fator_graham: float = Query(22.5, gt=0, le=100),
+    fator_lynch: float = Query(1.0, gt=0, le=5),
+    excluir_financeiras: bool = True,
+    excluir_utilities: bool = True,
+    limite: int = Query(100, ge=1, le=500),
+    sessao: Session = Depends(obter_sessao),
+):
+    if metodo not in METODOS:
+        raise HTTPException(422, f"método deve ser um de {', '.join(METODOS)}")
+    return ranking.ranking_acoes(sessao, metodo, Parametros(liquidez_minima, yield_bazin, fator_graham, fator_lynch,
+                                                            excluir_financeiras, excluir_utilities, limite))
+
+
+@rotas.get("/status")
+def status(sessao: Session = Depends(obter_sessao)):
+    return consultas.status_dados(sessao)

@@ -1,8 +1,5 @@
-import { TabelaAtivos } from "@/componentes/TabelaAtivos";
-import { buscar } from "@/lib/api";
-import type { ItemLista } from "@/lib/tipos";
-
-export const dynamic = "force-dynamic";
+import Link from "next/link";
+import { BuscaAtivos } from "@/componentes/BuscaAtivos";
 
 const COLUNAS = [
   { id: "basico.p_l", rotulo: "P/L" },
@@ -15,12 +12,18 @@ const COLUNAS = [
   { id: "basico.liquidez_diaria", rotulo: "Liquidez" },
 ];
 
-export default async function Acoes() {
-  const itens = (await buscar<ItemLista[]>("/acoes")) ?? [];
+export default function Acoes() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Ações</h1>
-      <TabelaAtivos itens={itens} colunas={COLUNAS} base="acoes" />
+      <BuscaAtivos base="acoes" colunas={COLUNAS} exemplo="PETR4 ou Petrobras" />
+      <p className="text-sm suave">
+        Para ver a lista de ações ordenada por desconto, use{" "}
+        <Link href="/mais-baratas" className="link">
+          Mais baratas
+        </Link>
+        .
+      </p>
     </div>
   );
 }

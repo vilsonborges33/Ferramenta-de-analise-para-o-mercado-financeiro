@@ -110,6 +110,12 @@ Funcionou de primeira: cadastro CVM, FCA, DFP/ITR 2020–2026, informes de FII e
 - **brapi sem token:** só alguns tickers de teste respondem; os demais dão 401. O ticker é pulado sem abortar os outros, e o log sugere cadastrar o token gratuito.
 - **Duas cargas simultâneas** (worker automático + comando manual): uma trava no PostgreSQL deixa só uma rodar por vez.
 
+**D-024 — Busca sob demanda e ranking "Mais baratas"** · 11/10/2026 · aprovada (pedido do usuário)
+- As páginas Ações e FIIs não listam mais tudo ao abrir. Mostram resultados só depois de 2 letras digitadas (ticker ou nome, até 20 resultados).
+- A listagem geral fica na página **Mais baratas**: rankings de Greenblatt, Graham, Bazin e Lynch com parâmetros editáveis, liquidez mínima (padrão R$ 1 mi/dia), aviso de não recomendação, motivos de exclusão e link para "Como é calculado". Isso adianta o núcleo da Fase 3 (o screening com filtros completos, os favoritos e a exportação seguem pendentes).
+- Valor intrínseco de Graham, preço teto de Bazin, PEG e preço justo de Lynch, e EY e ROC de Greenblatt passam a ser materializados por ação com os parâmetros padrão e aparecem na página do ativo, com o aviso.
+- Página **Status dos dados**: último lote de cada fonte e contagens (ações com cotação, empresas com balanço etc.), para diagnosticar a carga sem usar o terminal.
+
 ---
 
 ## Perguntas em aberto

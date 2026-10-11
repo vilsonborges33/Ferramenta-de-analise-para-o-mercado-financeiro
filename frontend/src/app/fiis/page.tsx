@@ -1,8 +1,4 @@
-import { TabelaAtivos } from "@/componentes/TabelaAtivos";
-import { buscar } from "@/lib/api";
-import type { ItemLista } from "@/lib/tipos";
-
-export const dynamic = "force-dynamic";
+import { BuscaAtivos } from "@/componentes/BuscaAtivos";
 
 const COLUNAS = [
   { id: "fii.p_vp", rotulo: "P/VP" },
@@ -13,12 +9,11 @@ const COLUNAS = [
   { id: "basico.liquidez_diaria", rotulo: "Liquidez" },
 ];
 
-export default async function Fiis() {
-  const itens = (await buscar<ItemLista[]>("/fiis")) ?? [];
+export default function Fiis() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Fundos imobiliários</h1>
-      <TabelaAtivos itens={itens} colunas={COLUNAS} base="fiis" />
+      <BuscaAtivos base="fiis" colunas={COLUNAS} exemplo="HGLG11" />
     </div>
   );
 }

@@ -4,7 +4,9 @@ import { Numero } from "@/componentes/Numero";
 import { formatarData, formatarValor, nomeFonte } from "@/lib/formato";
 import type { Detalhe } from "@/lib/tipos";
 
-const ORDEM_GRUPOS = ["Valuation", "Rentabilidade", "Endividamento", "Crescimento", "Mercado", "Base"];
+const METODOS_DE_PRECO = ["Graham", "Bazin", "Lynch", "Greenblatt"];
+const ORDEM_GRUPOS = ["Valuation", "Graham", "Bazin", "Lynch", "Greenblatt", "Rentabilidade", "Endividamento",
+  "Crescimento", "Mercado", "Base"];
 
 export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
   const grupos = Object.entries(ativo.grupos).sort(
@@ -59,6 +61,11 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
       {grupos.map(([grupo, numeros]) => (
         <section key={grupo} className="space-y-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide suave">{grupo}</h2>
+          {METODOS_DE_PRECO.includes(grupo) && (
+            <p className="text-xs" style={{ color: "var(--alerta)" }}>
+              Valor calculado com os parâmetros padrão do método; não constitui recomendação de investimento.
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {numeros.map((n) => (
               <div key={n.metrica} className="cartao p-3">
