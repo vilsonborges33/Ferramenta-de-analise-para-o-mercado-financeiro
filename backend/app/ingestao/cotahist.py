@@ -110,10 +110,18 @@ def criar_ativos_fii(ctx: Contexto, registros: list[dict]) -> int:
 
 
 def ligar_fiis_por_isin(sessao) -> None:
+    """Liga cada cota negociada a um único fundo. Vários cadastros podem informar o mesmo ISIN
+    (ex.: fundo e classe após a Resolução CVM 175); fica o cadastro mais recente."""
     ativos_por_isin = {a.isin: a.id for a in sessao.scalars(select(Ativo).where(Ativo.classe == "FII"))
                        if a.isin}
-    for fii in sessao.scalars(select(Fii).where(Fii.ativo_id.is_(None), Fii.isin.is_not(None))):
-        fii.ativo_id = ativos_por_isin.get(fii.isin)
+    ligados = set(sessao.scalars(select(Fii.ativo_id).where(Fii.ativo_id.is_not(None))))
+    candidatos = sessao.scalars(select(Fii).where(Fii.ativo_id.is_(None), Fii.isin.is_not(None))
+                                .order_by(Fii.data_referencia.desc(), Fii.id.desc()))
+    for fii in candidatos:
+        ativo_id = ativos_por_isin.get(fii.isin)
+        if ativo_id is not None and ativo_id not in ligados:
+            fii.ativo_id = ativo_id
+            ligados.add(ativo_id)
     sessao.flush()
 
 
@@ -133,4 +141,6 @@ def ingerir_ano(sessao, ano: int, tickers: set[str] | None = None) -> int:
 
 
 def ingerir_dia(sessao, data: date, tickers: set[str] | None = None) -> int:
-    return ingerir_arquivo(sessao, URL_DIARIO.format(data=data), tickers)
+    if data.weekday() >= 5:  # sábado/domingo: não há pregão
+        return 0
+    return ingerir_arquivo(sessao, URL_DIARIO.format(data=data), tickers) or 0

@@ -98,6 +98,15 @@ def lote(sessao: Session, codigo_fonte: str, arquivo_origem: str | None = None):
         registro.status = "concluido"
         registro.concluido_em = datetime.now(UTC)
         sessao.commit()
+    except ArquivoIndisponivel as aviso:
+        # Ex.: arquivo diário da B3 ainda não publicado (fim de semana, feriado, antes do fechamento).
+        sessao.rollback()
+        registro = sessao.get(LoteIngestao, registro.id)
+        registro.status = "sem_arquivo"
+        registro.erro = str(aviso)[:4000]
+        registro.concluido_em = datetime.now(UTC)
+        sessao.commit()
+        log.info("%s", aviso)
     except Exception as erro:
         sessao.rollback()
         registro = sessao.get(LoteIngestao, registro.id)
@@ -125,6 +134,8 @@ def baixar(url: str, fonte: str, nome_arquivo: str | None = None) -> tuple[Path,
     destino = destino_dir / (nome_arquivo or url.rsplit("/", 1)[-1].split("?")[0])
     log.info("baixando %s", url)
     with cliente_http() as cliente, cliente.stream("GET", url) as resposta:
+        if resposta.status_code == 404:
+            raise ArquivoIndisponivel(f"arquivo não publicado (404): {url}")
         resposta.raise_for_status()
         sha = hashlib.sha256()
         with destino.open("wb") as saida:
@@ -163,6 +174,10 @@ def data_br(texto: str | None) -> date | None:
         dia, mes, ano = texto.split("/")
         return date(int(ano), int(mes), int(dia))
     return date.fromisoformat(texto[:10])
+
+
+class ArquivoIndisponivel(Exception):
+    """A fonte ainda não publicou o arquivo pedido; não é erro, o lote fica como "sem_arquivo"."""
 
 
 class EsquemaInesperado(Exception):

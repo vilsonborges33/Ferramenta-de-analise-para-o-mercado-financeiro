@@ -99,6 +99,17 @@ As métricas dos 10 livros são funções puras em `backend/app/metodologias/` (
 - **FII, Gordon ajustado:** usa por padrão a taxa do Tesouro líquida de 15% de IR (rendimentos de FII são isentos para a pessoa física), com opção da taxa bruta.
 - **All Weather:** pesos de referência por classe (30/40/15/7,5/7,5), editáveis.
 
+## Primeira carga com dados reais (11/10/2026)
+
+**D-023 — Correções após a primeira carga real no computador do usuário** · 11/10/2026 · aprovada
+Funcionou de primeira: cadastro CVM, FCA, DFP/ITR 2020–2026, informes de FII e Tesouro (formatos e URLs confirmados). Problemas encontrados e corrigidos:
+- **Padronização:** empresas que mudaram a data de encerramento do exercício entregam dois DFP no mesmo ano. Fica o de data final mais recente. Uma empresa com falha não interrompe mais as demais.
+- **COTAHIST:** dois cadastros de FII com o mesmo ISIN (fundo e classe, Resolução CVM 175) quebravam a ligação cota → fundo e, com isso, a gravação de todas as cotações. Agora cada cota liga a um único fundo (o cadastro mais recente).
+- **Arquivo diário da B3:** não existe em fins de semana/feriados nem antes da publicação. Vira lote "sem_arquivo", não erro.
+- **Banco Central (SGS):** respondeu algo que não era JSON para uma janela da série 432. Agora tenta 3 vezes, registra o trecho da resposta e segue para as demais janelas e séries.
+- **brapi sem token:** só alguns tickers de teste respondem; os demais dão 401. O ticker é pulado sem abortar os outros, e o log sugere cadastrar o token gratuito.
+- **Duas cargas simultâneas** (worker automático + comando manual): uma trava no PostgreSQL deixa só uma rodar por vez.
+
 ---
 
 ## Perguntas em aberto

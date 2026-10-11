@@ -289,4 +289,16 @@ def padronizar(linhas: list[dict], tipo_plano: str = "geral") -> list[PeriodoPad
         inicio_ttm = date(janela[-1][0], 3 * janela[-1][1] - 2, 1)
         saida.append(PeriodoPadronizado(f"{ano}-T{q}", "ttm", inicio_ttm, info["data_fim"], info["consolidado"],
                                         info["versao"], info["documento"], ttm.campos, dict(ttm.insumos)))
-    return saida
+    return _um_por_periodo(saida)
+
+
+def _um_por_periodo(periodos: list[PeriodoPadronizado]) -> list[PeriodoPadronizado]:
+    """Um registro por (período, tipo). Empresas que mudaram a data de encerramento do exercício
+    entregam dois documentos no mesmo ano; fica o de data final mais recente."""
+    escolhidos: dict[tuple[str, str], PeriodoPadronizado] = {}
+    for p in periodos:
+        chave = (p.periodo, p.tipo_periodo)
+        atual = escolhidos.get(chave)
+        if atual is None or (p.data_fim, p.versao_usada) > (atual.data_fim, atual.versao_usada):
+            escolhidos[chave] = p
+    return list(escolhidos.values())

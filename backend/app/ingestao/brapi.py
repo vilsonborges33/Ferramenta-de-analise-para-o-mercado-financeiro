@@ -8,6 +8,7 @@ O formato das respostas segue a documentação pública da brapi e precisa ser c
 execução real (a rede deste ambiente de desenvolvimento bloqueia o domínio).
 """
 
+import logging
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -17,6 +18,8 @@ from sqlalchemy.dialects.postgresql import insert
 from app.config import obter_configuracao
 from app.db.modelos import Ativo, CotacaoDiaria, Provento
 from app.ingestao.base import Contexto, cliente_http, lote
+
+log = logging.getLogger(__name__)
 
 URL = "https://brapi.dev/api/quote/{ticker}"
 
@@ -114,10 +117,13 @@ def ingerir(sessao, tickers: list[str]) -> dict[str, int]:
     if cfg.brapi_proventos_habilitado:
         params["dividends"] = "true"
     totais = {"cotacoes": 0, "proventos": 0}
+    pulados: list[str] = []
     with lote(sessao, "BRAPI", URL.format(ticker="*")) as ctx, cliente_http() as cliente:
         for ticker in tickers:
             resposta = cliente.get(URL.format(ticker=ticker), params=params)
-            if resposta.status_code == 404:
+            if resposta.status_code in (401, 402, 403, 404, 429):
+                # 401: sem token, o plano gratuito só libera alguns tickers de teste; os demais pulam.
+                pulados.append(f"{ticker} ({resposta.status_code})")
                 continue
             resposta.raise_for_status()
             for resultado in resposta.json().get("results", []):
@@ -127,4 +133,8 @@ def ingerir(sessao, tickers: list[str]) -> dict[str, int]:
                 if cfg.brapi_proventos_habilitado:
                     totais["proventos"] += gravar_proventos(ctx, parse_proventos(resultado))
         ctx.lote.linhas_gravadas = sum(totais.values())
+        if pulados:
+            ctx.lote.erro = "tickers pulados: " + ", ".join(pulados)
+            log.warning("brapi: %s ticker(s) pulados %s%s", len(pulados), pulados,
+                        "" if cfg.brapi_token else " — cadastre um token gratuito em brapi.dev (BRAPI_TOKEN no .env)")
     return totais

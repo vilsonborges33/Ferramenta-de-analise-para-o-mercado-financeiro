@@ -1,13 +1,14 @@
 """Tarefas de ingestão e recálculo, usadas pelo agendador e pela linha de comando."""
 
 import logging
+from contextlib import contextmanager
 from datetime import date, timedelta
 
 from sqlalchemy import func, select
 
 from app.config import obter_configuracao
 from app.db.modelos import DemonstracaoLinha
-from app.db.sessao import FabricaSessao
+from app.db.sessao import FabricaSessao, motor
 from app.ingestao import bcb_sgs, brapi, cotahist, cvm_companhias, cvm_demonstracoes, cvm_fii, tesouro
 from app.ingestao.base import garantir_fontes
 from app.ingestao.padronizacao_db import padronizar_todas
@@ -90,7 +91,30 @@ def carga_inicial_se_vazio() -> None:
     carga_inicial(ano - ANOS_CARGA_INICIAL, ano)
 
 
+CHAVE_TRAVA_CARGA = 7_214_001  # trava consultiva do PostgreSQL (um número qualquer, fixo)
+
+
+@contextmanager
+def trava_exclusiva(chave: int = CHAVE_TRAVA_CARGA):
+    """Garante uma carga por vez entre processos (worker e linha de comando). Devolve False se já há outra."""
+    with motor.connect() as conexao:
+        obtida = conexao.execute(select(func.pg_try_advisory_lock(chave))).scalar()
+        try:
+            yield bool(obtida)
+        finally:
+            if obtida:
+                conexao.execute(select(func.pg_advisory_unlock(chave)))
+
+
 def carga_inicial(ano_inicial: int, ano_final: int) -> None:
+    with trava_exclusiva() as obtida:
+        if not obtida:
+            log.warning("já existe uma carga em andamento (worker ou outro terminal); esta foi ignorada")
+            return
+        _carga_inicial(ano_inicial, ano_final)
+
+
+def _carga_inicial(ano_inicial: int, ano_final: int) -> None:
     anos = list(range(ano_inicial, ano_final + 1))
     preparar()
     companhias(ano_final)

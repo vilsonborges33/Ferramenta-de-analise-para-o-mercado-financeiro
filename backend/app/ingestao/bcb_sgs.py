@@ -4,6 +4,8 @@ Endpoint: https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados?formato=j
 Desde 26/03/2025 o filtro de datas é obrigatório e a janela máxima é de 10 anos para séries diárias.
 """
 
+import logging
+import time
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -12,6 +14,8 @@ from sqlalchemy.dialects.postgresql import insert
 
 from app.db.modelos import SerieEconomica
 from app.ingestao.base import Contexto, cliente_http, data_br, lote
+
+log = logging.getLogger(__name__)
 
 URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados"
 
@@ -54,7 +58,29 @@ def gravar(ctx: Contexto, codigo: str, pontos: list[tuple[date, Decimal]]) -> in
     return len(linhas)
 
 
-def ingerir(sessao, codigo: str, inicio: date | None = None, fim: date | None = None) -> int:
+def consultar(cliente, codigo_sgs: int, de: date, ate: date, tentativas: int = 3, espera: float = 2.0) -> list | None:
+    """Uma janela da série. Devolve a lista de pontos, [] se não houver dados, ou None se a API
+    responder algo que não é JSON mesmo após novas tentativas (instabilidade do SGS)."""
+    params = {"formato": "json", "dataInicial": de.strftime("%d/%m/%Y"), "dataFinal": ate.strftime("%d/%m/%Y")}
+    for tentativa in range(1, tentativas + 1):
+        resposta = cliente.get(URL.format(codigo=codigo_sgs), params=params)
+        if resposta.status_code == 404:  # janela sem observações
+            return []
+        if resposta.status_code < 500:
+            resposta.raise_for_status()
+            try:
+                return resposta.json()
+            except ValueError:
+                pass
+        log.warning("SGS %s (%s a %s): resposta inválida (HTTP %s, início: %r), tentativa %s/%s",
+                    codigo_sgs, params["dataInicial"], params["dataFinal"], resposta.status_code,
+                    resposta.text[:120], tentativa, tentativas)
+        if tentativa < tentativas:
+            time.sleep(espera * tentativa)
+    return None
+
+
+def ingerir(sessao, codigo: str, inicio: date | None = None, fim: date | None = None, cliente=None) -> int:
     codigo_sgs = SERIES[codigo][0]
     if inicio is None:
         ultima = sessao.scalar(select(func.max(SerieEconomica.data)).where(SerieEconomica.codigo == codigo))
@@ -62,18 +88,33 @@ def ingerir(sessao, codigo: str, inicio: date | None = None, fim: date | None = 
     fim = fim or date.today()
     if inicio > fim:
         return 0
-    total = 0
-    with lote(sessao, "BCB_SGS", URL.format(codigo=codigo_sgs)) as ctx, cliente_http() as cliente:
-        for de, ate in janelas(inicio, fim):
-            resposta = cliente.get(URL.format(codigo=codigo_sgs), params={
-                "formato": "json", "dataInicial": de.strftime("%d/%m/%Y"), "dataFinal": ate.strftime("%d/%m/%Y")})
-            if resposta.status_code == 404:  # janela sem observações
-                continue
-            resposta.raise_for_status()
-            total += gravar(ctx, codigo, parse(resposta.json()))
-        ctx.lote.linhas_gravadas = total
+    total, janelas_falhas = 0, 0
+    proprio = cliente is None
+    cliente = cliente or cliente_http()
+    try:
+        with lote(sessao, "BCB_SGS", URL.format(codigo=codigo_sgs)) as ctx:
+            for de, ate in janelas(inicio, fim):
+                dados = consultar(cliente, codigo_sgs, de, ate)
+                if dados is None:
+                    janelas_falhas += 1
+                    continue
+                total += gravar(ctx, codigo, parse(dados))
+            ctx.lote.linhas_gravadas = total
+            if janelas_falhas:
+                ctx.lote.erro = f"{janelas_falhas} janela(s) sem resposta válida do SGS; tentar de novo mais tarde"
+    finally:
+        if proprio:
+            cliente.close()
     return total
 
 
-def ingerir_todas(sessao) -> dict[str, int]:
-    return {codigo: ingerir(sessao, codigo) for codigo in SERIES}
+def ingerir_todas(sessao) -> dict[str, int | str]:
+    """Cada série é independente: a falha de uma não impede as outras."""
+    resultado: dict[str, int | str] = {}
+    for codigo in SERIES:
+        try:
+            resultado[codigo] = ingerir(sessao, codigo)
+        except Exception as erro:
+            log.exception("SGS %s falhou", codigo)
+            resultado[codigo] = f"erro: {erro!r}"[:200]
+    return resultado

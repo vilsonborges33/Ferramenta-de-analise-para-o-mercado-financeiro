@@ -1,10 +1,14 @@
 """Grava a padronização das demonstrações no banco (lógica pura em `padronizacao.py`)."""
 
+import logging
+
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db.modelos import DemonstracaoLinha, DemonstracaoPadronizada, Empresa, Fonte
 from app.ingestao.padronizacao import padronizar
+
+log = logging.getLogger(__name__)
 
 _COLUNAS = ("documento", "tipo", "conta_codigo", "conta_descricao", "valor", "data_fim", "data_inicio",
             "versao", "consolidado", "data_referencia", "fonte_id", "lote_ingestao_id", "coletado_em")
@@ -33,8 +37,15 @@ def padronizar_empresa(sessao: Session, empresa: Empresa) -> int:
 
 
 def padronizar_todas(sessao: Session) -> int:
-    total = 0
-    for empresa in sessao.scalars(select(Empresa)):
-        total += padronizar_empresa(sessao, empresa)
-        sessao.commit()
+    total, falhas = 0, 0
+    for empresa_id, nome in sessao.execute(select(Empresa.id, Empresa.nome)).all():
+        try:
+            total += padronizar_empresa(sessao, sessao.get(Empresa, empresa_id))
+            sessao.commit()
+        except Exception:
+            sessao.rollback()
+            falhas += 1
+            log.exception("padronização falhou para %s (id %s)", nome, empresa_id)
+    if falhas:
+        log.warning("padronização: %s empresa(s) com falha", falhas)
     return total
