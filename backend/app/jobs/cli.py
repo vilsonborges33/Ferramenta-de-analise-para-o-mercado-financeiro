@@ -7,6 +7,7 @@ Exemplos:
   python -m app.jobs.cli indicadores --tickers PETR4 VALE3
   python -m app.jobs.cli diagnostico PETR4
   python -m app.jobs.cli atualizar-mercado
+  python -m app.jobs.cli completar   # organiza balanços pendentes + cotações/dividendos + indicadores
 """
 
 import argparse
@@ -34,6 +35,7 @@ def main() -> None:
     d = sub.add_parser("diagnostico")
     d.add_argument("ticker", nargs="?", default="PETR4")
     sub.add_parser("atualizar-mercado")
+    sub.add_parser("completar")
     i = sub.add_parser("indicadores")
     i.add_argument("--tickers", nargs="*")
     a = p.parse_args()
@@ -61,6 +63,8 @@ def main() -> None:
         case "proventos":
             tarefas.proventos(a.dias_fnet)
             tarefas.indicadores()
+        case "completar":
+            tarefas.completar_carga(forcar=True)
         case "atualizar-mercado":
             ano = date.today().year
             tarefas.cotacoes_historicas(list(range(ano - tarefas.ANOS_CARGA_INICIAL, ano + 1)))

@@ -40,3 +40,57 @@ def test_completa_carga_parcial_sem_cotacoes(sessao, monkeypatch):
     tarefas.carga_inicial_se_vazio()
     # Yahoo (padrão): o histórico de cotações já traz os dividendos; não refaz a carga completa
     assert [c[0] for c in chamadas] == ["cotacoes", "indicadores"]
+
+
+def test_completar_organiza_balancos_pendentes_e_registra_no_status(sessao, monkeypatch):
+    from sqlalchemy import select
+
+    from app.db.modelos import DemonstracaoPadronizada, Fonte, LoteIngestao
+    from app.ingestao.padronizacao_db import empresas_sem_padronizacao
+
+    carregar_companhias(sessao)
+    with zipfile.ZipFile(io.BytesIO(amostras.zip_dfp(2024, 8000, 1000))) as z, lote(sessao, "CVM_DFP") as ctx:
+        cvm_demonstracoes.processar_zip(ctx, z, "DFP", 2024)
+    assert empresas_sem_padronizacao(sessao) == 1
+    monkeypatch.setattr(tarefas, "cotacoes_historicas", lambda anos: None)
+    monkeypatch.setattr(tarefas, "indicadores", lambda: None)
+    tarefas.completar_carga()
+    sessao.expire_all()
+    assert empresas_sem_padronizacao(sessao) == 0
+    assert sessao.query(DemonstracaoPadronizada).count() > 0
+    registro = sessao.scalars(select(LoteIngestao).join(Fonte).where(Fonte.codigo == "PROCESSAMENTO_CVM")).first()
+    assert registro.status == "concluido" and "1 empresas organizadas" in registro.erro
+
+
+def test_faltam_cotacoes_quando_menos_da_metade_tem_preco(sessao):
+    from datetime import date
+    from decimal import Decimal
+
+    from sqlalchemy import select
+
+    from app.db.modelos import Ativo, CotacaoDiaria
+    carregar_companhias(sessao)  # 3 ações
+    assert tarefas.faltam_cotacoes(sessao)
+    ids = list(sessao.scalars(select(Ativo.id)))
+    with lote(sessao, "BRAPI") as ctx:
+        sessao.add(CotacaoDiaria(ativo_id=ids[0], data=date(2025, 1, 2), fechamento=Decimal(1),
+                                 **ctx.procedencia(date(2025, 1, 2))))
+    assert tarefas.faltam_cotacoes(sessao)  # 1 de 3: como as poucas cotações da brapi gratuita
+    with lote(sessao, "BRAPI") as ctx:
+        sessao.add(CotacaoDiaria(ativo_id=ids[1], data=date(2025, 1, 2), fechamento=Decimal(1),
+                                 **ctx.procedencia(date(2025, 1, 2))))
+    assert not tarefas.faltam_cotacoes(sessao)
+
+
+def test_falha_num_passo_nao_impede_os_seguintes(sessao, monkeypatch):
+    chamadas = []
+
+    def quebra(*a):
+        raise RuntimeError("falha simulada")
+
+    monkeypatch.setattr(tarefas, "_criar_tickers_fii", quebra)
+    monkeypatch.setattr(tarefas, "cotacoes_historicas", lambda anos: chamadas.append("cotacoes"))
+    monkeypatch.setattr(tarefas, "indicadores", lambda: chamadas.append("indicadores"))
+    carregar_companhias(sessao)
+    tarefas.completar_carga(forcar=True)
+    assert chamadas == ["cotacoes", "indicadores"]

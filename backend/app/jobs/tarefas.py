@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from sqlalchemy import func, select
 
 from app.config import obter_configuracao
-from app.db.modelos import CotacaoDiaria, DemonstracaoLinha, Provento
+from app.db.modelos import Ativo, CotacaoDiaria, DemonstracaoLinha, Provento
 from app.db.sessao import FabricaSessao, motor
 from app.ingestao import (
     b3_proventos,
@@ -22,7 +22,7 @@ from app.ingestao import (
     yahoo,
 )
 from app.ingestao.base import garantir_fontes
-from app.ingestao.padronizacao_db import padronizar_todas
+from app.ingestao.padronizacao_db import empresas_sem_padronizacao, padronizar_todas
 from app.servicos.indicadores import recalcular
 
 log = logging.getLogger(__name__)
@@ -114,34 +114,56 @@ ANOS_CARGA_INICIAL = 6  # 6 anos de DFP permitem o CAGR de 5 anos
 
 
 def faltam_cotacoes(sessao) -> bool:
-    return sessao.scalar(select(func.count()).select_from(CotacaoDiaria)) == 0
+    """Menos da metade das ações ativas tem cotação (ex.: só as poucas que a brapi gratuita libera)."""
+    acoes = sessao.scalar(select(func.count()).select_from(Ativo).where(Ativo.classe == "ACAO", Ativo.ativo.is_(True)))
+    com_cotacao = sessao.scalar(select(func.count(func.distinct(CotacaoDiaria.ativo_id)))
+                                .join(Ativo, Ativo.id == CotacaoDiaria.ativo_id).where(Ativo.classe == "ACAO"))
+    return acoes > 0 and com_cotacao < acoes / 2
 
 
 def faltam_proventos(sessao) -> bool:
     return sessao.scalar(select(func.count()).select_from(Provento)) == 0
 
 
-def completar_carga() -> None:
-    """Instalação com carga parcial (ex.: balanços sem cotações): busca só o que falta e recalcula."""
+def _passo(nome: str, funcao, *args) -> None:
+    """Executa um passo do complemento sem deixar uma falha interromper os seguintes."""
+    try:
+        funcao(*args)
+    except Exception:
+        log.exception("%s falhou", nome)
+
+
+def _criar_tickers_fii() -> None:
+    with FabricaSessao() as sessao:  # FIIs ganham ticker pelo ISIN (antes vinha do COTAHIST)
+        cvm_fii.criar_ativos_pelo_isin(sessao)
+        cotahist.ligar_fiis_por_isin(sessao)
+        sessao.commit()
+
+
+def completar_carga(forcar: bool = False) -> None:
+    """Instalação com carga parcial: organiza balanços pendentes, busca cotações/dividendos que faltam
+    e recalcula. Com `forcar`, refaz cotações e dividendos mesmo que pareçam completos."""
     with trava_exclusiva() as obtida:
         if not obtida:
             log.warning("já existe uma carga em andamento; complemento ignorado")
             return
         with FabricaSessao() as sessao:
-            sem_cotacoes, sem_proventos = faltam_cotacoes(sessao), faltam_proventos(sessao)
-        if not (sem_cotacoes or sem_proventos):
+            sem_padronizacao = empresas_sem_padronizacao(sessao)
+            sem_cotacoes = forcar or faltam_cotacoes(sessao)
+            sem_proventos = forcar or faltam_proventos(sessao)
+        if not (sem_padronizacao or sem_cotacoes or sem_proventos):
             return
         ano = date.today().year
-        with FabricaSessao() as sessao:  # FIIs ganham ticker pelo ISIN (antes vinha do COTAHIST)
-            cvm_fii.criar_ativos_pelo_isin(sessao)
-            cotahist.ligar_fiis_por_isin(sessao)
-            sessao.commit()
+        _passo("tickers de FII", _criar_tickers_fii)
+        if sem_padronizacao:
+            log.info("%s empresa(s) com balanço sem períodos organizados: reorganizando", sem_padronizacao)
+            _passo("padronização", _executar, "padronização", padronizar_todas)
         if sem_cotacoes:
-            log.info("há balanços mas nenhuma cotação: baixando cotações de %s a %s", ano - ANOS_CARGA_INICIAL, ano)
-            cotacoes_historicas(list(range(ano - ANOS_CARGA_INICIAL, ano + 1)))
-        if not usa_yahoo() or not sem_cotacoes:  # no Yahoo, o histórico já trouxe os dividendos
-            proventos(dias_fnet=400)
-        indicadores()
+            log.info("faltam cotações: baixando de %s a %s", ano - ANOS_CARGA_INICIAL, ano)
+            _passo("cotações", cotacoes_historicas, list(range(ano - ANOS_CARGA_INICIAL, ano + 1)))
+        if sem_proventos and not (usa_yahoo() and sem_cotacoes):  # no Yahoo, o histórico já trouxe os dividendos
+            _passo("proventos", proventos, 400)
+        _passo("indicadores", indicadores)
 
 
 def carga_inicial_se_vazio() -> None:

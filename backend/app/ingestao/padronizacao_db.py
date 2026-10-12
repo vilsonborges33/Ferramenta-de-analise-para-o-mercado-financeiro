@@ -2,10 +2,11 @@
 
 import logging
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app.db.modelos import DemonstracaoLinha, DemonstracaoPadronizada, Empresa, Fonte
+from app.db.modelos import DemonstracaoLinha, DemonstracaoPadronizada, Empresa, Fonte, LoteIngestao
+from app.ingestao.base import lote
 from app.ingestao.padronizacao import padronizar
 
 log = logging.getLogger(__name__)
@@ -37,15 +38,34 @@ def padronizar_empresa(sessao: Session, empresa: Empresa) -> int:
 
 
 def padronizar_todas(sessao: Session) -> int:
-    total, falhas = 0, 0
+    """Organiza os balanços de todas as empresas. O resultado (e as falhas) fica em "Status dos dados"."""
+    total, falhas, empresas_ok = 0, [], 0
+    lote_id = None
+    with lote(sessao, "PROCESSAMENTO_CVM", "padronização") as ctx:
+        lote_id = ctx.lote.id
     for empresa_id, nome in sessao.execute(select(Empresa.id, Empresa.nome)).all():
         try:
-            total += padronizar_empresa(sessao, sessao.get(Empresa, empresa_id))
+            n = padronizar_empresa(sessao, sessao.get(Empresa, empresa_id))
             sessao.commit()
-        except Exception:
+            total += n
+            empresas_ok += 1 if n else 0
+        except Exception as erro:
             sessao.rollback()
-            falhas += 1
+            falhas.append(f"{nome}: {erro!r}"[:200])
             log.exception("padronização falhou para %s (id %s)", nome, empresa_id)
+    registro = sessao.get(LoteIngestao, lote_id)
+    registro.linhas_gravadas = total
+    registro.erro = (f"{empresas_ok} empresas organizadas; {len(falhas)} com falha. Ex.: " + " | ".join(falhas[:5])
+                     if falhas else f"{empresas_ok} empresas organizadas")
+    registro.status = "erro" if falhas and not empresas_ok else "concluido"
+    sessao.commit()
     if falhas:
-        log.warning("padronização: %s empresa(s) com falha", falhas)
+        log.warning("padronização: %s empresa(s) com falha", len(falhas))
     return total
+
+
+def empresas_sem_padronizacao(sessao: Session) -> int:
+    """Empresas com linhas de balanço mas nenhum período organizado."""
+    com_linhas = select(DemonstracaoLinha.empresa_id).distinct()
+    com_periodos = select(DemonstracaoPadronizada.empresa_id).distinct()
+    return sessao.scalar(select(func.count()).select_from(com_linhas.except_(com_periodos).subquery())) or 0

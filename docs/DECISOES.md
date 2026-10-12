@@ -141,6 +141,19 @@ Funcionou de primeira: cadastro CVM, FCA, DFP/ITR 2020–2026, informes de FII e
 - Só a fonte de proventos configurada entra no DY, para não somar o mesmo provento duas vezes.
 - Atualização diária às 19h, com os últimos 5 dias. Carga inicial: 6 anos de histórico.
 
+**D-028 — Complemento de carga mais robusto (diagnóstico de 12/10/2026)** · aprovada
+O diagnóstico no computador do usuário mostrou:
+- o Yahoo nunca tinha rodado: as 3 cotações da brapi faziam o sistema achar que já havia cotações;
+- a Petrobras tinha 15.704 linhas de balanço e nenhum período organizado;
+- os FIIs não tinham ticker.
+
+Correções:
+- **Cotações faltando:** passa a valer "menos da metade das ações ativas tem cotação".
+- **Complemento por passos:** organiza os balanços pendentes, cria os tickers de FII pelo ISIN, busca cotações e dividendos e recalcula. Cada passo é independente: a falha de um não impede os seguintes.
+- **Organização dos balanços visível:** grava um lote ("Organização dos balanços") em Status, com quantas empresas foram organizadas e exemplos de falha.
+- **Diagnóstico:** se o ticker tem balanço mas nenhum período organizado, roda a organização em memória e mostra o erro exato.
+- **Comando `completar`:** força o complemento inteiro pelo terminal.
+
 ---
 
 ## Perguntas em aberto

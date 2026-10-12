@@ -40,6 +40,8 @@ FONTES: tuple[DefinicaoFonte, ...] = (
     DefinicaoFonte("B3_COTAHIST", "B3 — Séries históricas de cotações (COTAHIST)",
                    "https://www.b3.com.br/pt_br/market-data-e-indices/servicos-de-dados/market-data/historico/"
                    "mercado-a-vista/series-historicas/", "Política de Market Data B3 (uso pessoal)"),
+    DefinicaoFonte("PROCESSAMENTO_CVM", "Organização dos balanços da CVM por período (processamento interno)",
+                   "-", "-"),
     DefinicaoFonte("YAHOO_FINANCE", "Yahoo Finance — cotações e dividendos (API não oficial)",
                    "https://finance.yahoo.com", "Termos do Yahoo restringem uso automatizado; uso pessoal"),
     DefinicaoFonte("B3_PROVENTOS", "B3 — Proventos em dinheiro das companhias listadas",

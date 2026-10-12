@@ -26,6 +26,23 @@ INDICADORES = ("basico.lpa", "basico.vpa", "basico.p_l", "basico.p_vp", "basico.
                "graham.valor_intrinseco", "basico.liquidez_diaria")
 
 
+def _testar_padronizacao(sessao, empresa) -> str:
+    """Roda a organização dos balanços da empresa em memória e devolve o resultado ou o erro."""
+    import traceback
+
+    from app.ingestao.padronizacao import padronizar
+    from app.ingestao.padronizacao_db import _COLUNAS
+    consulta = select(*[getattr(DemonstracaoLinha, c) for c in _COLUNAS]).where(
+        DemonstracaoLinha.empresa_id == empresa.id)
+    linhas = [dict(zip(_COLUNAS, r, strict=True)) for r in sessao.execute(consulta)]
+    try:
+        periodos = padronizar(linhas, empresa.tipo_plano_contas)
+    except Exception:  # noqa: BLE001
+        return "ERRO\n" + traceback.format_exc()[-1500:]
+    exemplos = sorted({(p.periodo, p.tipo_periodo) for p in periodos})[-4:]
+    return f"ok, {len(periodos)} períodos (ex.: {exemplos}); rode `completar` para gravá-los"
+
+
 def executar(ticker: str = "PETR4") -> str:
     linhas: list[str] = []
     p = linhas.append
@@ -60,6 +77,9 @@ def executar(ticker: str = "PETR4") -> str:
                 p(f"linhas de balanço: {s.scalar(select(func.count()).select_from(DemonstracaoLinha).where(DemonstracaoLinha.empresa_id == empresa.id))}"  # noqa: E501
                   f" | períodos organizados: {s.scalar(select(func.count()).select_from(DemonstracaoPadronizada).where(DemonstracaoPadronizada.empresa_id == empresa.id))}"  # noqa: E501
                   f" | composição do capital: {s.scalar(select(func.count()).select_from(ComposicaoCapital).where(ComposicaoCapital.empresa_id == empresa.id))}")  # noqa: E501
+            if empresa and not s.scalar(select(func.count()).select_from(DemonstracaoPadronizada)
+                                        .where(DemonstracaoPadronizada.empresa_id == empresa.id)):
+                p("organização dos balanços (teste agora): " + _testar_padronizacao(s, empresa))
             ultima = s.scalar(select(CotacaoDiaria).where(CotacaoDiaria.ativo_id == ativo.id)
                               .order_by(desc(CotacaoDiaria.data)))
             p(f"última cotação: {f'{ultima.data} R$ {ultima.fechamento}' if ultima else 'nenhuma'}")
