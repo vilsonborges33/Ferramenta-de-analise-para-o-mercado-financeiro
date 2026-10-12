@@ -132,6 +132,10 @@ def completar_carga() -> None:
         if not (sem_cotacoes or sem_proventos):
             return
         ano = date.today().year
+        with FabricaSessao() as sessao:  # FIIs ganham ticker pelo ISIN (antes vinha do COTAHIST)
+            cvm_fii.criar_ativos_pelo_isin(sessao)
+            cotahist.ligar_fiis_por_isin(sessao)
+            sessao.commit()
         if sem_cotacoes:
             log.info("há balanços mas nenhuma cotação: baixando cotações de %s a %s", ano - ANOS_CARGA_INICIAL, ano)
             cotacoes_historicas(list(range(ano - ANOS_CARGA_INICIAL, ano + 1)))
