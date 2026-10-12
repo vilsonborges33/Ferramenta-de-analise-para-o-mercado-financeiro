@@ -19,15 +19,14 @@ export function BuscaAtivos({ base, colunas, exemplo }: Props) {
       return;
     }
     const controle = new AbortController();
+    setCarregando(true); // já mostra "Buscando…" durante a pausa de digitação
     const espera = setTimeout(async () => {
-      setCarregando(true);
       try {
         const r = await fetch(`/api/${base}?busca=${encodeURIComponent(termo.trim())}`, { signal: controle.signal });
         setItens(r.ok ? await r.json() : []);
+        setCarregando(false);
       } catch {
         /* busca cancelada pela digitação seguinte */
-      } finally {
-        setCarregando(false);
       }
     }, 300);
     return () => {

@@ -104,3 +104,33 @@ def test_carga_inicial_ignorada_se_ja_em_andamento(sessao, monkeypatch):
     assert chamadas == [1]
 
 
+
+
+def test_codigos_que_nao_sao_ticker_b3_sao_ignorados(sessao):
+    from app.ingestao import cvm_companhias
+    assert cvm_companhias.ticker_valido("PETR4") and cvm_companhias.ticker_valido("TAEE11")
+    assert not cvm_companhias.ticker_valido("8192") and not cvm_companhias.ticker_valido("022055")
+    carregar_companhias(sessao)
+    sessao.add(Ativo(ticker="8192", classe="ACAO", empresa_id=sessao.scalar(select(Ativo.empresa_id).limit(1))))
+    sessao.commit()
+    carregar_companhias(sessao)  # reprocessar o FCA desativa o código inválido antigo
+    assert sessao.scalar(select(Ativo.ativo).where(Ativo.ticker == "8192")) is False
+
+
+def test_cotacoes_gravadas_mesmo_se_ligacao_de_fii_falhar(sessao, monkeypatch):
+    carregar_companhias(sessao)
+    from app.ingestao import base
+    from tests import amostras
+    texto = amostras.linha_cotahist("20250102", "EXMP3", 10.0, 5_000_000)
+    caminho = base.obter_configuracao().diretorio_dados_brutos / "teste.zip"
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    import zipfile
+    with zipfile.ZipFile(caminho, "w") as z:
+        z.writestr("COTAHIST.TXT", texto)
+    monkeypatch.setattr(cotahist, "baixar", lambda url, fonte: (caminho, "hash"))
+
+    def quebra(ctx, registros):
+        raise RuntimeError("falha simulada")
+
+    monkeypatch.setattr(cotahist, "criar_ativos_fii", quebra)
+    assert cotahist.ingerir_arquivo(sessao, "url") == 1

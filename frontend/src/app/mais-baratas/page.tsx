@@ -166,6 +166,16 @@ export default function MaisBaratas() {
 
       {dados && (
         <>
+          {dados.total_avaliados > 0 && (dados.excluidos["sem cotação"] ?? 0) === dados.total_avaliados && (
+            <p className="cartao p-3 text-sm" style={{ color: "var(--alerta)" }}>
+              Nenhuma ação tem cotação carregada ainda, por isso o ranking está vazio. Deixe o Docker aberto: o
+              sistema baixa as cotações da B3 sozinho. Acompanhe em{" "}
+              <Link href="/status" className="link">
+                Status dos dados
+              </Link>
+              .
+            </p>
+          )}
           <p className="text-xs suave">
             {dados.total_no_ranking} de {dados.total_avaliados} ações no ranking.
             {Object.keys(dados.excluidos).length > 0 &&

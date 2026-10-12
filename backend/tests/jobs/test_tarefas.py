@@ -26,3 +26,16 @@ def test_carga_inicial_so_roda_com_banco_vazio(sessao, monkeypatch):
         cvm_demonstracoes.processar_zip(ctx, z, "DFP", 2024)
     tarefas.carga_inicial_se_vazio()
     assert len(chamadas) == 1
+
+
+def test_completa_carga_parcial_sem_cotacoes(sessao, monkeypatch):
+    carregar_companhias(sessao)
+    with zipfile.ZipFile(io.BytesIO(amostras.zip_dfp(2024, 8000, 1000))) as z, lote(sessao, "CVM_DFP") as ctx:
+        cvm_demonstracoes.processar_zip(ctx, z, "DFP", 2024)
+    chamadas = []
+    monkeypatch.setattr(tarefas, "cotacoes_historicas", lambda anos: chamadas.append(("cotacoes", tuple(anos))))
+    monkeypatch.setattr(tarefas, "proventos", lambda dias_fnet: chamadas.append(("proventos", dias_fnet)))
+    monkeypatch.setattr(tarefas, "indicadores", lambda: chamadas.append(("indicadores",)))
+    monkeypatch.setattr(tarefas, "_carga_inicial", lambda de, ate: chamadas.append(("completa",)))
+    tarefas.carga_inicial_se_vazio()
+    assert [c[0] for c in chamadas] == ["cotacoes", "proventos", "indicadores"]  # não refaz a carga completa

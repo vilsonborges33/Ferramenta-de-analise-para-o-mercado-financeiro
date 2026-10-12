@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from sqlalchemy import func, select
 
 from app.config import obter_configuracao
-from app.db.modelos import DemonstracaoLinha
+from app.db.modelos import CotacaoDiaria, DemonstracaoLinha, Provento
 from app.db.sessao import FabricaSessao, motor
 from app.ingestao import (
     b3_proventos,
@@ -97,10 +97,41 @@ def precisa_carga_inicial(sessao) -> bool:
 ANOS_CARGA_INICIAL = 6  # 6 anos de DFP permitem o CAGR de 5 anos
 
 
+def faltam_cotacoes(sessao) -> bool:
+    return sessao.scalar(select(func.count()).select_from(CotacaoDiaria)) == 0
+
+
+def faltam_proventos(sessao) -> bool:
+    return sessao.scalar(select(func.count()).select_from(Provento)) == 0
+
+
+def completar_carga() -> None:
+    """Instalação com carga parcial (ex.: balanços sem cotações): busca só o que falta e recalcula."""
+    with trava_exclusiva() as obtida:
+        if not obtida:
+            log.warning("já existe uma carga em andamento; complemento ignorado")
+            return
+        with FabricaSessao() as sessao:
+            sem_cotacoes, sem_proventos = faltam_cotacoes(sessao), faltam_proventos(sessao)
+        if not (sem_cotacoes or sem_proventos):
+            return
+        ano = date.today().year
+        if sem_cotacoes:
+            log.info("há balanços mas nenhuma cotação: baixando o COTAHIST de %s e %s", ano - 1, ano)
+            cotacoes_historicas([ano - 1, ano])
+        proventos(dias_fnet=400)
+        indicadores()
+
+
 def carga_inicial_se_vazio() -> None:
     with FabricaSessao() as sessao:
         if not precisa_carga_inicial(sessao):
-            return
+            parcial = True
+        else:
+            parcial = False
+    if parcial:
+        completar_carga()
+        return
     ano = date.today().year
     log.info("banco sem dados: iniciando a carga inicial (%s–%s); pode levar bastante tempo",
              ano - ANOS_CARGA_INICIAL, ano)

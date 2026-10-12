@@ -8,6 +8,7 @@ Uso conforme a Política de Market Data da B3 — ver docs/FONTES_DE_DADOS.md (u
 """
 
 import io
+import logging
 import zipfile
 from datetime import date
 from decimal import Decimal
@@ -17,6 +18,8 @@ from sqlalchemy.dialects.postgresql import insert
 
 from app.db.modelos import Ativo, CotacaoDiaria, Fii
 from app.ingestao.base import Contexto, EsquemaInesperado, baixar, lote
+
+log = logging.getLogger(__name__)
 
 URL_ANUAL = "https://bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_A{ano}.ZIP"
 URL_DIARIO = "https://bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_D{data:%d%m%Y}.ZIP"
@@ -132,7 +135,11 @@ def ingerir_arquivo(sessao, url: str, tickers: set[str] | None = None) -> int:
         nome = z.namelist()[0]
         texto = io.TextIOWrapper(z.open(nome), encoding="latin-1").read()
         registros = parse(texto, tickers)
-        criar_ativos_fii(ctx, registros)
+        try:
+            with ctx.sessao.begin_nested():  # falha ao ligar FIIs não pode impedir a gravação das cotações
+                criar_ativos_fii(ctx, registros)
+        except Exception:
+            log.exception("COTAHIST: falha ao criar/ligar ativos de FII; seguindo com as cotações")
         return gravar(ctx, registros)
 
 

@@ -124,6 +124,12 @@ Funcionou de primeira: cadastro CVM, FCA, DFP/ITR 2020–2026, informes de FII e
 - Quando a fonte já carregou com sucesso, um ativo sem provento na janela tem DY = 0 (e não "dado indisponível").
 - A brapi paga continua como plano B, caso a B3 mude as consultas.
 
+**D-026 — Segunda rodada de testes reais (12/10/2026)** · aprovada
+- Nenhuma cotação gravada no computador do usuário: proventos e indicadores de preço ficaram indisponíveis. O worker agora **completa uma carga parcial sozinho** ao reiniciar: se há balanços mas não há cotações (ou proventos), baixa o COTAHIST do ano atual e do anterior, os proventos e recalcula.
+- A ligação cota → FII roda numa transação à parte: se falhar, as cotações são gravadas mesmo assim.
+- O FCA trazia códigos que não são tickers da B3 (ex.: "8192"). Agora só entram códigos no padrão 4 letras + 1–2 dígitos, e os antigos são desativados.
+- Busca: mostra "Buscando…" durante a pausa de digitação, em vez de "nenhum ativo encontrado".
+
 ---
 
 ## Perguntas em aberto

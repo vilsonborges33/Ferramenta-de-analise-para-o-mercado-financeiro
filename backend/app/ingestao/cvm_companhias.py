@@ -7,6 +7,7 @@ Arquivos (Dados Abertos CVM, ODbL):
 """
 
 import io
+import re
 import zipfile
 from datetime import date
 from pathlib import Path
@@ -73,6 +74,14 @@ def especie_por_ticker(ticker: str, valor_mobiliario: str) -> tuple[str, str]:
     return "ACAO", "ON" if "Ordin" in valor_mobiliario else "PN"
 
 
+# Ticker de ação/unit/BDR na B3: 4 letras + 1 ou 2 dígitos (ex.: PETR4, TAEE11, AAPL34).
+PADRAO_TICKER_B3 = re.compile(r"^[A-Z]{4}\d{1,2}$")
+
+
+def ticker_valido(ticker: str) -> bool:
+    return bool(PADRAO_TICKER_B3.match(ticker))
+
+
 def parse_valores_mobiliarios(df: pd.DataFrame) -> list[dict]:
     exigir_colunas(df.columns, COLUNAS_VALOR_MOBILIARIO, "fca_cia_aberta_valor_mobiliario")
     df = df[(df["Codigo_Negociacao"].str.strip() != "")
@@ -83,6 +92,8 @@ def parse_valores_mobiliarios(df: pd.DataFrame) -> list[dict]:
     registros = []
     for _, linha in df.iterrows():
         ticker = linha["Codigo_Negociacao"].strip().upper()
+        if not ticker_valido(ticker):  # códigos de outros mercados (ex.: "8192") não são tickers da B3
+            continue
         classe, especie = especie_por_ticker(ticker, linha["Valor_Mobiliario"])
         registros.append({
             "ticker": ticker,
@@ -124,6 +135,10 @@ def gravar_valores_mobiliarios(ctx: Contexto, registros: list[dict]) -> int:
         )
         ctx.sessao.execute(stmt)
         gravados += 1
+    # Desativa códigos inválidos gravados por versões anteriores.
+    for ativo in ctx.sessao.scalars(select(Ativo).where(Ativo.classe.in_(("ACAO", "UNIT")), Ativo.ativo.is_(True))):
+        if not ticker_valido(ativo.ticker):
+            ativo.ativo = False
     ctx.lote.linhas_gravadas = gravados
     return gravados
 
