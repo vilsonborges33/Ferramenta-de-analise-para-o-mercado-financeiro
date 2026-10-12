@@ -55,6 +55,28 @@ def acoes_em_circulacao(total_emitidas: Numero, em_tesouraria: Numero) -> Result
     return ok(circulacao)
 
 
+def fator_escala_acoes(total_acoes: Numero, preco: Numero, patrimonio_liquido: Numero,
+                       receita_liquida: Numero) -> tuple[int, str | None]:
+    """Detecta quantidade de ações informada em milhares no formulário da CVM (sem indicação no arquivo).
+
+    Se o valor de mercado resultante for implausível (P/VP < 0,02, ou P/Receita < 0,005 quando não há PL
+    positivo) e multiplicar por 1.000 o levar a uma faixa plausível, devolve (1000, aviso); senão (1, None).
+    """
+    if not total_acoes or not preco or total_acoes <= 0 or preco <= 0:
+        return 1, None
+    mercado = total_acoes * preco
+    for base, minimo, maximo, nome in ((patrimonio_liquido, 0.02, 100.0, "P/VP"),
+                                       (receita_liquida, 0.005, 100.0, "P/Receita")):
+        if base is None or base <= 0:
+            continue
+        razao = mercado / base
+        if razao < minimo and minimo <= razao * 1000 <= maximo:
+            return 1000, (f"quantidade de ações informada em milhares no formulário da CVM; convertida "
+                          f"(o {nome} sem conversão seria {razao:.4f})")
+        return 1, None
+    return 1, None
+
+
 def valor_de_mercado(classes: Sequence[tuple[Numero, Numero]]) -> Resultado:
     """Valor de mercado = Σ (ações em circulação da classe × cotação da classe).
 

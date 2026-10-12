@@ -46,6 +46,16 @@ def _normalizar(df: pd.DataFrame, arquivo: str) -> pd.DataFrame:
     return df.sort_values("_versao").drop_duplicates(["_cnpj", "_data"], keep="last")
 
 
+def _isin(linha: dict) -> str | None:
+    """ISIN das cotas: coluna "Codigo_ISIN" ou qualquer coluna cujo nome contenha "ISIN"."""
+    for chave, valor in linha.items():
+        if "isin" in str(chave).lower():
+            texto = str(valor or "").strip().upper()
+            if len(texto) == 12 and texto.startswith("BR"):
+                return texto
+    return None
+
+
 def _int(texto) -> int | None:
     v = decimal_br(texto)
     return None if v is None else int(v)
@@ -69,7 +79,7 @@ def parse(geral: pd.DataFrame, complemento: pd.DataFrame, ativo_passivo: pd.Data
         fundos[linha["_cnpj"]] = {  # fica o cadastro do mês mais recente
             "cnpj": linha["_cnpj"],
             "nome": linha[coluna_nome].strip(),
-            "isin": (_get(linha, "Codigo_ISIN") or "").strip() or None,
+            "isin": _isin(linha),
             "segmento": _get(linha, "Segmento_Atuacao"),
             "mandato": _get(linha, "Mandato"),
             "tipo_gestao": _get(linha, "Tipo_Gestao"),

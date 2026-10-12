@@ -94,3 +94,15 @@ def test_falha_num_passo_nao_impede_os_seguintes(sessao, monkeypatch):
     carregar_companhias(sessao)
     tarefas.completar_carga(forcar=True)
     assert chamadas == ["cotacoes", "indicadores"]
+
+
+def test_tickers_sem_cotacao_e_fiis_sem_ticker(sessao):
+    from datetime import date
+
+    from app.db.modelos import Fii
+    carregar_companhias(sessao)
+    assert sorted(tarefas.tickers_sem_cotacao(sessao)) == ["BEXM3", "EXMP3", "EXMP4"]
+    assert not tarefas.fiis_sem_ticker(sessao)  # nenhum FII cadastrado
+    with lote(sessao, "CVM_FII_MENSAL") as ctx:
+        sessao.add(Fii(cnpj="1", nome="F", isin="BRABCDCTF000", **ctx.procedencia(date(2025, 1, 1))))
+    assert tarefas.fiis_sem_ticker(sessao)

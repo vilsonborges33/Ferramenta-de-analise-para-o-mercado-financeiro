@@ -154,6 +154,19 @@ Correções:
 - **Diagnóstico:** se o ticker tem balanço mas nenhum período organizado, roda a organização em memória e mostra o erro exato.
 - **Comando `completar`:** força o complemento inteiro pelo terminal.
 
+**D-029 — Ações informadas em milhares e FIIs sem ticker** · 12/10/2026 · aprovada
+O teste no computador do usuário mostrou números absurdos no ranking, por exemplo:
+- ABEV3 com preço justo de Lynch de R$ 6.708 e PEG 0,00;
+- EMBJ3 com earnings yield de 238%.
+
+Causa: algumas empresas informam na CVM a quantidade de ações em milhares.
+
+Correções:
+- **Escala das ações:** se o P/VP (ou o P/Receita, sem PL positivo) fica implausivelmente baixo e, multiplicando a quantidade por 1.000, cai numa faixa normal, o cálculo usa a quantidade × 1.000. O ajuste aparece como aviso no detalhamento do número (ⓘ).
+- **ISIN dos FIIs:** a leitura passa a aceitar qualquer coluna do informe mensal cujo nome contenha "ISIN".
+- **Complemento:** o comando `completar` reprocessa os informes de FII quando há fundos sem ticker e busca no Yahoo as cotações dos tickers que ainda não têm nenhuma.
+- **Diagnóstico:** mostra quantos FIIs existem, quantos têm ISIN e quantos têm ticker.
+
 ---
 
 ## Perguntas em aberto

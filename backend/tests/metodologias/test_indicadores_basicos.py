@@ -136,3 +136,18 @@ def test_registro_consistente():
     for m in TODAS:
         assert m.formula and m.referencia and m.unidade
         assert m.como_dict()["id"] == m.id
+
+
+def test_fator_escala_acoes():
+    # PL R$ 100 bi, preço R$ 15: 15,7 mi de ações (em milhares) → valor de mercado R$ 235 mi, P/VP 0,0024
+    fator, aviso = ib.fator_escala_acoes(15.7e6, 15.0, 100e9, 80e9)
+    assert fator == 1000 and "milhares" in aviso
+    assert ib.fator_escala_acoes(15.7e9, 15.0, 100e9, 80e9) == (1, None)  # já em unidades
+    # PL negativo: usa a receita
+    assert ib.fator_escala_acoes(1e6, 10.0, -5e9, 20e9)[0] == 1000
+    assert ib.fator_escala_acoes(1e9, 10.0, None, 20e9) == (1, None)
+    # nem com ×1000 fica plausível: não mexe
+    assert ib.fator_escala_acoes(10, 1.0, 100e9, None) == (1, None)
+    assert ib.fator_escala_acoes(None, 10.0, 1e9, 1e9) == (1, None)
+    assert ib.fator_escala_acoes(1e6, None, 1e9, 1e9) == (1, None)
+    assert ib.fator_escala_acoes(1e6, 10.0, None, None) == (1, None)

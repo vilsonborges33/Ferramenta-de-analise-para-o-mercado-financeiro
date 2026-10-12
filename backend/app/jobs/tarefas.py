@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from sqlalchemy import func, select
 
 from app.config import obter_configuracao
-from app.db.modelos import Ativo, CotacaoDiaria, DemonstracaoLinha, Provento
+from app.db.modelos import Ativo, CotacaoDiaria, DemonstracaoLinha, Fii, Provento
 from app.db.sessao import FabricaSessao, motor
 from app.ingestao import (
     b3_proventos,
@@ -121,6 +121,19 @@ def faltam_cotacoes(sessao) -> bool:
     return acoes > 0 and com_cotacao < acoes / 2
 
 
+def fiis_sem_ticker(sessao) -> bool:
+    """Mais da metade dos fundos do informe mensal ainda sem ticker ligado."""
+    total = sessao.scalar(select(func.count()).select_from(Fii))
+    ligados = sessao.scalar(select(func.count()).select_from(Fii).where(Fii.ativo_id.is_not(None)))
+    return total > 0 and ligados < total / 2
+
+
+def tickers_sem_cotacao(sessao) -> list[str]:
+    com_cotacao = select(CotacaoDiaria.ativo_id).distinct()
+    return list(sessao.scalars(select(Ativo.ticker).where(
+        Ativo.ativo.is_(True), Ativo.classe.in_(("ACAO", "UNIT", "FII")), Ativo.id.not_in(com_cotacao))))
+
+
 def faltam_proventos(sessao) -> bool:
     return sessao.scalar(select(func.count()).select_from(Provento)) == 0
 
@@ -151,9 +164,12 @@ def completar_carga(forcar: bool = False) -> None:
             sem_padronizacao = empresas_sem_padronizacao(sessao)
             sem_cotacoes = forcar or faltam_cotacoes(sessao)
             sem_proventos = forcar or faltam_proventos(sessao)
-        if not (sem_padronizacao or sem_cotacoes or sem_proventos):
+            sem_ticker_fii = fiis_sem_ticker(sessao)
+        if not (sem_padronizacao or sem_cotacoes or sem_proventos or sem_ticker_fii):
             return
         ano = date.today().year
+        if sem_ticker_fii:  # reprocessa os informes (leitura do ISIN mais tolerante) para criar os tickers
+            _passo("informes de FII", fiis, [ano - 1, ano])
         _passo("tickers de FII", _criar_tickers_fii)
         if sem_padronizacao:
             log.info("%s empresa(s) com balanço sem períodos organizados: reorganizando", sem_padronizacao)
@@ -161,6 +177,13 @@ def completar_carga(forcar: bool = False) -> None:
         if sem_cotacoes:
             log.info("faltam cotações: baixando de %s a %s", ano - ANOS_CARGA_INICIAL, ano)
             _passo("cotações", cotacoes_historicas, list(range(ano - ANOS_CARGA_INICIAL, ano + 1)))
+        elif usa_yahoo():  # ativos novos (ex.: FIIs que acabaram de ganhar ticker) ainda sem nenhum preço
+            with FabricaSessao() as sessao:
+                pendentes = tickers_sem_cotacao(sessao)
+            if pendentes:
+                log.info("%s ativo(s) sem nenhuma cotação: buscando no Yahoo", len(pendentes))
+                _passo("cotações pendentes", _executar, "Yahoo Finance (pendentes)", yahoo.ingerir, pendentes,
+                       f"{ANOS_CARGA_INICIAL + 1}y")
         if sem_proventos and not (usa_yahoo() and sem_cotacoes):  # no Yahoo, o histórico já trouxe os dividendos
             _passo("proventos", proventos, 400)
         _passo("indicadores", indicadores)

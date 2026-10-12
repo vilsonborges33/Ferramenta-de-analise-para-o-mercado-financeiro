@@ -154,8 +154,14 @@ class Calculadora:
         if capital:
             on = float(capital.acoes_ordinarias or 0) - float(capital.acoes_tesouraria_on or 0)
             pn = float(capital.acoes_preferenciais or 0) - float(capital.acoes_tesouraria_pn or 0)
+            fator, aviso_escala = ib.fator_escala_acoes(on + pn, preco, c.get("patrimonio_liquido_controladores"),
+                                                        c.get("receita_liquida"))
+            on, pn = on * fator, pn * fator
             acoes = ib.acoes_em_circulacao(on + pn, 0)
-            i_acoes = self._insumo("acoes_em_circulacao", acoes.valor, capital, ordinarias=on, preferenciais=pn)
+            if aviso_escala and acoes.disponivel:
+                acoes = Resultado(acoes.valor, None, {"aviso": aviso_escala})
+            i_acoes = self._insumo("acoes_em_circulacao", acoes.valor, capital, ordinarias=on, preferenciais=pn,
+                                   **({"aviso_escala": aviso_escala} if aviso_escala else {}))
             precos = self._precos_por_especie(empresa)
             for qtd, especie in ((on, "ON"), (pn, "PN")):
                 if qtd <= 0:

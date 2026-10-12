@@ -13,6 +13,7 @@ from app.db.modelos import (
     CotacaoDiaria,
     DemonstracaoLinha,
     DemonstracaoPadronizada,
+    Fii,
     Fonte,
     IndicadorCalculado,
     LoteIngestao,
@@ -55,6 +56,12 @@ def executar(ticker: str = "PETR4") -> str:
         p(f"ativos: {contar(Ativo)} | cotações: {contar(CotacaoDiaria)} | proventos: {contar(Provento)} | "
           f"linhas de balanço: {contar(DemonstracaoLinha)} | balanços organizados: {contar(DemonstracaoPadronizada)} "
           f"| composição do capital: {contar(ComposicaoCapital)}")
+        fiis = s.scalar(select(func.count()).select_from(Fii))
+        com_isin = s.scalar(select(func.count()).select_from(Fii).where(Fii.isin.is_not(None)))
+        com_ticker = s.scalar(select(func.count()).select_from(Fii).where(Fii.ativo_id.is_not(None)))
+        exemplo = s.scalar(select(Fii).order_by(desc(Fii.data_referencia)).limit(1))
+        p(f"FIIs: {fiis} | com ISIN: {com_isin} | com ticker: {com_ticker} | ex.: "
+          f"{(exemplo.nome, exemplo.isin) if exemplo else '-'}")
         p("")
         p("--- último lote de cada fonte ---")
         for f in s.scalars(select(Fonte).order_by(Fonte.id)):

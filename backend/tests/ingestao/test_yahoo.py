@@ -110,3 +110,8 @@ def test_dy_com_yahoo_usa_data_ex_e_ignora_outras_fontes(sessao):
                             data_com=date(2024, 12, 20), data_pagamento=date(2024, 12, 30), **ctx.procedencia(ref)))
     soma, lista, motivo = Calculadora(sessao).proventos_12m(ativo_id, ref)
     assert motivo is None and soma == pytest.approx(0.5) and len(lista) == 1
+
+
+def test_isin_em_coluna_com_outro_nome():
+    assert cvm_fii._isin({"Codigo_ISIN_Classe": "brtrxfctf001"}) == "BRTRXFCTF001"
+    assert cvm_fii._isin({"ISIN": "  "}) is None and cvm_fii._isin({"Nome": "BRTRXFCTF001"}) is None
