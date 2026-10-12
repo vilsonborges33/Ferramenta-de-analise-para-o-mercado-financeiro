@@ -16,7 +16,7 @@ import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
-from app.db.modelos import Fii, FiiInformeMensal
+from app.db.modelos import Ativo, Fii, FiiInformeMensal
 from app.ingestao.base import Contexto, EsquemaInesperado, baixar, data_br, decimal_br, lote
 from app.ingestao.cotahist import ligar_fiis_por_isin
 from app.ingestao.cvm_companhias import ler_csv_cvm
@@ -133,9 +133,33 @@ def gravar(ctx: Contexto, fundos: list[dict], informes: list[dict]) -> int:
             set_={k: stmt.excluded[k] for k in valores if k not in ("fii_id", "competencia", "versao")})
         ctx.sessao.execute(stmt)
         gravados += 1
+    criar_ativos_pelo_isin(ctx.sessao)
     ligar_fiis_por_isin(ctx.sessao)
     ctx.lote.linhas_gravadas = gravados
     return gravados
+
+
+def ticker_pelo_isin(isin: str | None) -> str | None:
+    """Cotas de FII: ISIN "BR" + 4 letras + "CTF" + ... → ticker com sufixo 11 (ex.: BRHGLGCTF004 → HGLG11)."""
+    if not isin or len(isin) != 12 or isin[6:9] != "CTF" or not isin[2:6].isalpha():
+        return None
+    return f"{isin[2:6].upper()}11"
+
+
+def criar_ativos_pelo_isin(sessao) -> int:
+    existentes_isin = set(sessao.scalars(select(Ativo.isin).where(Ativo.isin.is_not(None))))
+    existentes_ticker = set(sessao.scalars(select(Ativo.ticker)))
+    novos = 0
+    for fii in sessao.scalars(select(Fii).where(Fii.isin.is_not(None))):
+        ticker = ticker_pelo_isin(fii.isin)
+        if ticker is None or fii.isin in existentes_isin or ticker in existentes_ticker:
+            continue
+        sessao.add(Ativo(ticker=ticker, classe="FII", isin=fii.isin, mercado="B3", moeda="BRL"))
+        existentes_isin.add(fii.isin)
+        existentes_ticker.add(ticker)
+        novos += 1
+    sessao.flush()
+    return novos
 
 
 def _ler(z: zipfile.ZipFile, parte: str, ano: int) -> pd.DataFrame:

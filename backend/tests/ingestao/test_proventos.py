@@ -144,7 +144,9 @@ def test_fnet_ingerir(sessao, monkeypatch):
     assert sessao.query(Provento).count() == 1  # mesmo evento nos dois documentos: sem duplicar
 
 
-def test_dy_zero_quando_fonte_carregou_e_nao_ha_provento(sessao):
+def test_dy_zero_quando_fonte_carregou_e_nao_ha_provento(sessao, monkeypatch):
+    from app.config import obter_configuracao
+    monkeypatch.setattr(obter_configuracao(), "fonte_mercado", "b3")
     _ativos(sessao)
     hoje = date.today()
     with lote(sessao, "B3_COTAHIST") as ctx:
@@ -163,6 +165,6 @@ def test_dy_zero_quando_fonte_carregou_e_nao_ha_provento(sessao):
     soma3, _, _ = calc.proventos_12m(sessao.scalar(select(Ativo.id).where(Ativo.ticker == "EXMP3")), hoje)
     assert soma3 == pytest.approx(0.8)
     _, _, motivo_fii = calc.proventos_12m(sessao.scalar(select(Ativo.id).where(Ativo.ticker == "EXMP4")), hoje, "FII")
-    assert motivo_fii and "FNET" in motivo_fii  # FNET ainda não carregou
+    assert motivo_fii and "não ingeridos" in motivo_fii  # FNET ainda não carregou
     assert recalcular(sessao) >= 0
     assert sessao.query(IndicadorCalculado).count() == 0  # ativos sem empresa: nada a materializar

@@ -19,6 +19,7 @@ from app.ingestao import (
     cvm_fii,
     fnet_rendimentos,
     tesouro,
+    yahoo,
 )
 from app.ingestao.base import garantir_fontes
 from app.ingestao.padronizacao_db import padronizar_todas
@@ -62,20 +63,35 @@ def fiis(anos: list[int]) -> None:
         _executar(f"FII mensal {ano}", cvm_fii.ingerir, ano)
 
 
+def usa_yahoo() -> bool:
+    return obter_configuracao().fonte_mercado == "yahoo"
+
+
 def cotacoes_historicas(anos: list[int], somente_acompanhados: bool = False) -> None:
+    """Histórico de cotações (e, no Yahoo, também dos dividendos) cobrindo os anos pedidos."""
     tickers = set(obter_configuracao().lista_tickers) if somente_acompanhados else None
+    if usa_yahoo():
+        anos_atras = date.today().year - min(anos) + 1
+        _executar("Yahoo Finance (histórico)", yahoo.ingerir, sorted(tickers) if tickers else None, f"{anos_atras}y")
+        return
     for ano in anos:
         _executar(f"COTAHIST {ano}", cotahist.ingerir_ano, ano, tickers)
 
 
 def cotacoes_do_dia(dia: date | None = None) -> None:
+    if usa_yahoo():
+        _executar("Yahoo Finance (últimos dias)", yahoo.ingerir, None, "5d")
+        return
     dia = dia or date.today()
     _executar(f"COTAHIST {dia}", cotahist.ingerir_dia, dia)
     _executar("brapi", brapi.ingerir, obter_configuracao().lista_tickers)
 
 
 def proventos(dias_fnet: int = 10) -> None:
-    """Proventos de ações (B3) e rendimentos de FII (FNET). Depende do ISIN gravado pelo COTAHIST."""
+    """Proventos. No Yahoo vêm junto com as cotações (último ano); senão, B3 (ações) e FNET (FIIs)."""
+    if usa_yahoo():
+        _executar("Yahoo Finance (dividendos)", yahoo.ingerir, None, "2y")
+        return
     _executar("B3 proventos", b3_proventos.ingerir)
     _executar("FNET rendimentos", fnet_rendimentos.ingerir, dias_fnet)
 
@@ -117,9 +133,10 @@ def completar_carga() -> None:
             return
         ano = date.today().year
         if sem_cotacoes:
-            log.info("há balanços mas nenhuma cotação: baixando o COTAHIST de %s e %s", ano - 1, ano)
-            cotacoes_historicas([ano - 1, ano])
-        proventos(dias_fnet=400)
+            log.info("há balanços mas nenhuma cotação: baixando cotações de %s a %s", ano - ANOS_CARGA_INICIAL, ano)
+            cotacoes_historicas(list(range(ano - ANOS_CARGA_INICIAL, ano + 1)))
+        if not usa_yahoo() or not sem_cotacoes:  # no Yahoo, o histórico já trouxe os dividendos
+            proventos(dias_fnet=400)
         indicadores()
 
 
@@ -168,7 +185,8 @@ def _carga_inicial(ano_inicial: int, ano_final: int) -> None:
     demonstracoes(anos)
     fiis(anos)
     cotacoes_historicas(anos)
-    proventos(dias_fnet=400)  # 13 meses: cobre a janela de 12 meses do DY por data de pagamento
+    if not usa_yahoo():  # no Yahoo, o histórico de cotações já traz os dividendos
+        proventos(dias_fnet=400)  # 13 meses: cobre a janela de 12 meses do DY por data de pagamento
     macro()
     cotacoes_do_dia()
     indicadores()

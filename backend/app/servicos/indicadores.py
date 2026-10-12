@@ -33,8 +33,7 @@ from app.metodologias.registro import POR_ID
 from app.metodologias.tipos import Resultado, indisponivel
 
 PREGOES_LIQUIDEZ = 42  # ~2 meses de pregões
-MOTIVO_SEM_PROVENTOS = ("proventos não ingeridos: a carga de proventos (B3 para ações, FNET para FIIs) "
-                        "ainda não rodou com sucesso")
+MOTIVO_SEM_PROVENTOS = "proventos não ingeridos: a carga de dividendos ainda não rodou com sucesso"
 
 
 @dataclass
@@ -85,21 +84,31 @@ class Calculadora:
         Com a fonte carregada, ausência de provento na janela significa DY = 0 (e não dado indisponível).
         """
         if classe not in self._fontes_proventos:
-            codigo = "FNET_RENDIMENTOS" if classe == "FII" else "B3_PROVENTOS"
+            codigo = self._codigos_fonte_proventos(classe)[0]
             ok = self.sessao.scalar(select(func.count()).select_from(LoteIngestao).join(Fonte).where(
                 Fonte.codigo == codigo, LoteIngestao.status == "concluido", LoteIngestao.linhas_gravadas > 0))
             self._fontes_proventos[classe] = bool(ok) or obter_configuracao().brapi_proventos_habilitado
         return self._fontes_proventos[classe]
 
+    @staticmethod
+    def _codigos_fonte_proventos(classe: str) -> list[str]:
+        if obter_configuracao().fonte_mercado == "yahoo":
+            return ["YAHOO_FINANCE"]
+        return ["FNET_RENDIMENTOS" if classe == "FII" else "B3_PROVENTOS", "BRAPI"]
+
     def proventos_12m(self, ativo_id: int, referencia: date, classe: str = "ACAO"
                       ) -> tuple[float | None, list[Provento], str | None]:
-        existe = self.sessao.scalar(select(func.count()).select_from(Provento).where(Provento.ativo_id == ativo_id))
+        # Só a fonte configurada entra na conta, para não somar o mesmo provento vindo de duas fontes.
+        ids_fonte = [i for i, c in self.fontes.items() if c in self._codigos_fonte_proventos(classe)]
+        existe = self.sessao.scalar(select(func.count()).select_from(Provento).where(
+            Provento.ativo_id == ativo_id, Provento.fonte_id.in_(ids_fonte)))
         if not existe and not self._fonte_de_proventos_carregada(classe):
             return None, [], MOTIVO_SEM_PROVENTOS
+        # Janela pela data de pagamento (D-020); quando a fonte não informa o pagamento (Yahoo), pela data-ex (D-027).
+        data_janela = func.coalesce(Provento.data_pagamento, Provento.data_ex)
         lista = list(self.sessao.scalars(select(Provento).where(
-            # Janela pela data de pagamento (DECISOES.md D-020); sem data de pagamento = ainda não pago.
-            Provento.ativo_id == ativo_id, Provento.data_pagamento > referencia - timedelta(days=365),
-            Provento.data_pagamento <= referencia)))
+            Provento.ativo_id == ativo_id, Provento.fonte_id.in_(ids_fonte),
+            data_janela > referencia - timedelta(days=365), data_janela <= referencia)))
         aliquota_jcp = POR_ID["basico.dy"].parametros[0].padrao
         soma = sum(ib.provento_liquido(float(p.valor_por_cota), p.tipo, aliquota_jcp).valor for p in lista)
         return soma, lista, None
@@ -209,7 +218,7 @@ class Calculadora:
         referencia = cotacao.data if cotacao else date.today()
         soma, proventos, motivo = self.proventos_12m(ativo.id, referencia)
         i_prov = [self._insumo("provento", p.valor_por_cota, p, tipo=p.tipo, data_com=p.data_com.isoformat(),
-                                 data_pagamento=p.data_pagamento.isoformat())
+                                 data_pagamento=p.data_pagamento.isoformat() if p.data_pagamento else None)
                   for p in proventos]
         if motivo:
             add("basico.dy", indisponivel(motivo), [i_preco], referencia)
@@ -324,7 +333,8 @@ class Calculadora:
             calculos.append(Calculo("basico.dy", indisponivel(motivo), [i_preco] if i_preco else [], referencia))
         else:
             i_prov = [self._insumo("provento", p.valor_por_cota, p, data_com=p.data_com.isoformat(),
-                                     data_pagamento=p.data_pagamento.isoformat()) for p in proventos]
+                                   data_pagamento=p.data_pagamento.isoformat() if p.data_pagamento else None)
+                      for p in proventos]
             calculos.append(Calculo("basico.dy", ib.dividend_yield(soma, preco), [i_preco] + i_prov, referencia))
 
         if fii is None:

@@ -61,7 +61,7 @@ def test_indicadores_da_acao(cliente):
     assert ind["basico.liquidez_diaria"]["valor"] == pytest.approx(5_000_000)
     # sem proventos ingeridos: indisponível com motivo, nunca estimado
     assert ind["basico.dy"]["valor"] is None
-    assert "B3" in ind["basico.dy"]["motivo_indisponivel"]
+    assert "dividendos" in ind["basico.dy"]["motivo_indisponivel"]
     # procedência de cada insumo
     fontes = {p["fonte"] for p in ind["basico.p_l"]["procedencia"]}
     assert fontes == {"B3_COTAHIST", "CVM_DFP"}
@@ -180,7 +180,9 @@ def test_series_e_tesouro(cliente):
     assert cliente.get("/saude").json() == {"status": "ok"}
 
 
-def test_dy_usa_jcp_liquido_e_data_de_pagamento(cliente, sessao):
+def test_dy_usa_jcp_liquido_e_data_de_pagamento(cliente, sessao, monkeypatch):
+    from app.config import obter_configuracao
+    monkeypatch.setattr(obter_configuracao(), "fonte_mercado", "b3")  # regra da B3: data de pagamento e JCP
     from datetime import date
     from decimal import Decimal
 
@@ -198,7 +200,7 @@ def test_dy_usa_jcp_liquido_e_data_de_pagamento(cliente, sessao):
         ("DIVIDENDO", "9.99", date(2022, 12, 1), date(2023, 3, 1)),  # fora da janela
         ("DIVIDENDO", "1.00", date(2024, 11, 1), None),  # sem data de pagamento: não entra
     )
-    with abrir_lote(sessao, "BRAPI") as ctx:
+    with abrir_lote(sessao, "B3_PROVENTOS") as ctx:
         for tipo, valor, data_com, pagamento in casos:
             sessao.add(Provento(ativo_id=ativo_id, tipo=tipo, valor_por_cota=Decimal(valor), data_com=data_com,
                                 data_pagamento=pagamento, **ctx.procedencia(data_com)))

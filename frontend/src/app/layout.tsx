@@ -28,7 +28,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </header>
         <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
         <footer className="mx-auto max-w-6xl px-4 pb-8 text-xs suave">
-          Fontes: CVM — Dados Abertos (ODbL), B3, Banco Central (SGS, ODbL), Tesouro Transparente e brapi.dev.
+          Fontes: CVM — Dados Abertos (ODbL) para balanços e informes de FII; Yahoo Finance para cotações e
+          dividendos; Banco Central (SGS, ODbL) e Tesouro Transparente.
           Ferramenta de análise: os números são cálculos a partir de dados públicos e não constituem
           recomendação de investimento.
         </footer>

@@ -21,6 +21,9 @@ class Configuracao(BaseSettings):
     # Identificação enviada no User-Agent (boa prática; exigida pela SEC na Fase 7).
     contato_user_agent: str = "analise-mercado (contato: definir no .env)"
 
+    # Cotações e dividendos: "yahoo" (padrão) ou "b3" (COTAHIST + proventos B3/FNET).
+    fonte_mercado: str = "yahoo"
+
     brapi_token: str = ""
     # O plano gratuito da brapi não inclui proventos; ligar só com plano pago.
     brapi_proventos_habilitado: bool = False

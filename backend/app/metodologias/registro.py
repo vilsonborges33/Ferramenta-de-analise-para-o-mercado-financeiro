@@ -97,7 +97,9 @@ METRICAS: tuple[Metrica, ...] = (
             aplica_a=("ACAO", "FII"), parametros=(_ALIQUOTA_JCP,),
             limitacoes=("Depende da ingestão de proventos (plano pago da brapi).",
                         "JCP pelo valor líquido de IR na fonte; dividendos pelo valor declarado.",
-                        "Janela pela data de pagamento: proventos anunciados e ainda não pagos não entram.")),
+                        "Janela pela data de pagamento: proventos anunciados e ainda não pagos não entram.",
+                        "Com o Yahoo Finance como fonte: janela pela data-ex e valor bruto (o Yahoo não informa "
+                        "data de pagamento nem separa JCP de dividendo).")),
     Metrica("basico.payout", "Payout", "Valuation", "%",
             "Proventos líquidos por ação pagos em 12 m ÷ LPA (12 m)", GRAHAM,
             parametros=(_ALIQUOTA_JCP,),
@@ -141,7 +143,9 @@ METRICAS: tuple[Metrica, ...] = (
             limitacoes=("Usa demonstrações anuais (DFP). Indisponível se algum extremo for ≤ 0.",)),
     # mercado
     Metrica("basico.liquidez_diaria", "Liquidez média diária (2 meses)", "Mercado", "R$",
-            "Média do volume financeiro dos pregões dos últimos 2 meses", GRAHAM, aplica_a=("ACAO", "FII")),
+            "Média do volume financeiro dos pregões dos últimos 2 meses", GRAHAM, aplica_a=("ACAO", "FII"),
+            limitacoes=("Com o Yahoo Finance como fonte, o volume financeiro é estimado como fechamento × "
+                        "quantidade negociada.",)),
     # FII
     Metrica("fii.p_vp", "P/VP", "Valuation", "x", "Cotação ÷ valor patrimonial por cota (informe mensal CVM)",
             GRAHAM, aplica_a=("FII",), limitacoes=("VP/cota do último informe mensal entregue à CVM.",)),

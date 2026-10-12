@@ -32,7 +32,18 @@
   - **Conclusão:** área cinzenta para um app pago. Adequado para desenvolvimento e validação; antes de monetizar, consultar a B3.
 - **Proventos:** não foi encontrada fonte oficial aberta e estruturada da B3 (a confirmar). Por isso, os proventos dependem do provedor de cotações.
 
-### Proventos (adotado em 11/10/2026 — DECISOES.md D-025)
+### Yahoo Finance — cotações e dividendos (fonte padrão desde 12/10/2026 — DECISOES.md D-027)
+
+- **O que traz:** endpoint `query1.finance.yahoo.com/v8/finance/chart/{TICKER}.SA` com cotações diárias (abertura, máxima, mínima, fechamento ajustado por desdobramentos, quantidade negociada) e dividendos com data-ex.
+- **Termos:** não é uma API oficial nem tem contrato, e os termos do Yahoo restringem uso automatizado. Escolha do usuário para **uso pessoal**. Não usar num produto público ou pago sem rever essa decisão.
+- **Limitações:**
+  - sem data de pagamento (o DY passa a contar pela data-ex);
+  - sem separar JCP de dividendo (valores brutos);
+  - volume financeiro estimado como fechamento × quantidade;
+  - limite de requisições (HTTP 429), tratado com novas tentativas e pausa entre tickers.
+- **Balanços continuam na CVM:** os dados contábeis do Yahoo para empresas brasileiras são resumidos e não indicam a conta de origem, o que quebraria a rastreabilidade das fórmulas.
+
+### Proventos B3/FNET (alternativa com `FONTE_MERCADO=b3` — DECISOES.md D-025)
 
 - **Ações — B3, "Empresas listadas → Eventos corporativos".** Consulta pública usada pelo próprio site da B3 (`GetListedSupplementCompany`, parâmetro em base64 com o código de 4 letras da companhia). Traz, por ISIN, os proventos em dinheiro (dividendos, JCP, rendimentos), com data de aprovação, data-com e data de pagamento. Não é documentada: pode mudar sem aviso. Uso pessoal; uso comercial exigiria licença da B3.
 - **FIIs — FNET, "Aviso aos Cotistas – Estruturado / Rendimentos e Amortizações".** XML estruturado entregue pelo administrador do fundo, com valor por cota, data-base e data de pagamento. A listagem é a consulta pública do site do FNET (não documentada). Cada documento é baixado uma única vez.

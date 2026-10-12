@@ -38,4 +38,5 @@ def test_completa_carga_parcial_sem_cotacoes(sessao, monkeypatch):
     monkeypatch.setattr(tarefas, "indicadores", lambda: chamadas.append(("indicadores",)))
     monkeypatch.setattr(tarefas, "_carga_inicial", lambda de, ate: chamadas.append(("completa",)))
     tarefas.carga_inicial_se_vazio()
-    assert [c[0] for c in chamadas] == ["cotacoes", "proventos", "indicadores"]  # não refaz a carga completa
+    # Yahoo (padrão): o histórico de cotações já traz os dividendos; não refaz a carga completa
+    assert [c[0] for c in chamadas] == ["cotacoes", "indicadores"]

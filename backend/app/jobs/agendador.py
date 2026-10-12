@@ -17,9 +17,10 @@ def main() -> None:
     agendador = BlockingScheduler(timezone=FUSO)
     ano = lambda: [date.today().year]  # noqa: E731
     agendador.add_job(tarefas.macro, CronTrigger(hour=20, minute=0, timezone=FUSO), id="macro")
-    agendador.add_job(tarefas.cotacoes_do_dia, CronTrigger(day_of_week="mon-fri", hour=20, minute=30,
+    agendador.add_job(tarefas.cotacoes_do_dia, CronTrigger(day_of_week="mon-fri", hour=19, minute=0,
                                                             timezone=FUSO), id="cotacoes")
-    agendador.add_job(tarefas.proventos, CronTrigger(hour=21, minute=0, timezone=FUSO), id="proventos")
+    if not tarefas.usa_yahoo():  # no Yahoo, os dividendos vêm na atualização diária de cotações
+        agendador.add_job(tarefas.proventos, CronTrigger(hour=21, minute=0, timezone=FUSO), id="proventos")
     agendador.add_job(lambda: tarefas.companhias(), CronTrigger(hour=2, minute=0, timezone=FUSO), id="companhias")
     agendador.add_job(lambda: tarefas.demonstracoes(ano()), CronTrigger(hour=3, minute=0, timezone=FUSO),
                       id="demonstracoes")

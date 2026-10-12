@@ -9,6 +9,9 @@ const NOMES_FONTES: Record<string, string> = {
   CVM_FII_MENSAL: "CVM — Informe mensal de FII",
   B3_COTAHIST: "B3 — COTAHIST",
   BRAPI: "brapi.dev",
+  YAHOO_FINANCE: "Yahoo Finance",
+  B3_PROVENTOS: "B3 — Proventos",
+  FNET_RENDIMENTOS: "B3 FNET — Rendimentos de FII",
   BCB_SGS: "Banco Central — SGS",
   TESOURO_TD: "Tesouro Transparente",
 };

@@ -130,6 +130,17 @@ Funcionou de primeira: cadastro CVM, FCA, DFP/ITR 2020–2026, informes de FII e
 - O FCA trazia códigos que não são tickers da B3 (ex.: "8192"). Agora só entram códigos no padrão 4 letras + 1–2 dígitos, e os antigos são desativados.
 - Busca: mostra "Buscando…" durante a pausa de digitação, em vez de "nenhum ativo encontrado".
 
+**D-027 — Yahoo Finance para cotações e dividendos** · 12/10/2026 · aprovada (pedido do usuário)
+- O usuário pediu para trocar a busca de dados pelo Yahoo Finance. Com `FONTE_MERCADO=yahoo` (padrão), cotações e dividendos de ações e FIIs vêm do Yahoo; COTAHIST, B3 e FNET ficam como alternativa (`FONTE_MERCADO=b3`). Isso substitui a recomendação de D-010 (não usar Yahoo), por decisão do usuário, para uso pessoal; os termos do Yahoo restringem uso automatizado.
+- Balanços, cadastro, informes de FII, Selic/IPCA e Tesouro continuam nas fontes oficiais (CVM, BCB, Tesouro).
+- FIIs passam a ter ticker criado a partir do ISIN do informe mensal da CVM (BRxxxxCTF… → xxxx11), sem depender do COTAHIST.
+- Consequências nas regras de proventos (D-019/D-020) enquanto a fonte for o Yahoo:
+  - o DY conta pela **data-ex**, porque o Yahoo não informa a data de pagamento;
+  - JCP e dividendo não são separados, então entram pelo valor bruto;
+  - ambas as limitações aparecem em "Como é calculado".
+- Só a fonte de proventos configurada entra no DY, para não somar o mesmo provento duas vezes.
+- Atualização diária às 19h, com os últimos 5 dias. Carga inicial: 6 anos de histórico.
+
 ---
 
 ## Perguntas em aberto
