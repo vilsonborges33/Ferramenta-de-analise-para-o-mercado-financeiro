@@ -33,12 +33,40 @@ test("página do ativo mostra procedência ao tocar no ⓘ", async ({ page }, in
   if (process.env.CAPTURAS) await page.screenshot({ path: `${process.env.CAPTURAS}/ativo-${info.project.name}.png`, fullPage: true });
 });
 
-test("mais baratas mostra aviso e ranking", async ({ page }, info) => {
+test("ranking de ações: filtros, ordenação, colunas e exportação", async ({ page }, info) => {
   await page.goto("/mais-baratas");
   await expect(page.getByRole("note")).toContainText("Não constituem recomendação");
-  await page.getByRole("tab", { name: "Graham" }).click();
-  await expect(page.locator("tbody tr").first()).toBeVisible();
+  const linhas = page.locator("tbody tr");
+  await expect(linhas.first()).toBeVisible();
+  test.skip((await page.locator("tbody a").count()) === 0, "base sem ações com cotação");
+  await page.getByLabel("Ranquear por").selectOption("greenblatt");
+  await page.getByRole("button", { name: /^P\/L/ }).click();
+  await expect(page.locator("th[aria-sort=descending]")).toContainText("P/L");
+  await page.locator("summary", { hasText: "Colunas" }).click();
+  await page.getByRole("checkbox", { name: "Setor" }).check();
+  await expect(page.locator("thead")).toContainText("Setor");
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("link", { name: ".csv" }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^screening-acoes-.*\.csv$/);
+  const mostrar = page.getByRole("button", { name: "Mostrar filtros" });
+  if (await mostrar.isVisible()) await mostrar.click(); // no celular os filtros começam recolhidos
+  await page.getByLabel("P/L máximo").fill("0,01");
+  await expect(page.locator("tbody")).toContainText("Nenhuma ação passa nos filtros");
   const larguras = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
   expect(larguras[0]).toBeLessThanOrEqual(larguras[1]);
-  if (process.env.CAPTURAS) await page.screenshot({ path: `${process.env.CAPTURAS}/baratas-${info.project.name}.png`, fullPage: true });
+  if (process.env.CAPTURAS) await page.screenshot({ path: `${process.env.CAPTURAS}/ranking-${info.project.name}.png`, fullPage: true });
+});
+
+test("favoritos: entrar, marcar a estrela e filtrar", async ({ page }) => {
+  await page.goto("/mais-baratas");
+  await expect(page.locator("tbody tr").first()).toBeVisible();
+  test.skip((await page.locator("tbody a").count()) === 0, "base sem ações com cotação");
+  const email = `teste${Date.now()}${Math.floor(Math.random() * 1000)}@exemplo.com`;
+  const r = await page.request.post("/api/auth/registrar", { data: { email, senha: "senha-forte-123" } });
+  expect(r.ok()).toBeTruthy();
+  await page.reload();
+  const estrela = page.getByRole("button", { name: /Adicionar .* dos favoritos/ }).first();
+  await estrela.click();
+  await expect(page.getByRole("button", { name: /Remover .* dos favoritos/ }).first()).toBeVisible();
+  await page.getByRole("button", { name: "★ Favoritos" }).click();
+  await expect(page.locator("tbody a")).toHaveCount(1);
 });

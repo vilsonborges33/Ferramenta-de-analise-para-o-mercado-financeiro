@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BotaoFavorito } from "@/componentes/BotaoFavorito";
 import { GraficoCotacao } from "@/componentes/GraficoCotacao";
 import { Numero } from "@/componentes/Numero";
 import { formatarData, formatarValor, nomeFonte } from "@/lib/formato";
@@ -25,7 +26,10 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">{ativo.ticker}</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold">{ativo.ticker}</h1>
+            <BotaoFavorito ticker={ativo.ticker} />
+          </div>
           <div className="suave">{ativo.nome}</div>
           {ativo.outros_tickers && ativo.outros_tickers.length > 0 && (
             <div className="mt-1 text-xs suave">

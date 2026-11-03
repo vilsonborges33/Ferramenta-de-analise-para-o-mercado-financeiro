@@ -5,7 +5,7 @@ import secrets
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import field_validator
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -38,14 +38,21 @@ class Configuracao(BaseSettings):
     agendador_habilitado: bool = True
 
 
-    @field_validator("jwt_segredo")
-    @classmethod
-    def segredo_preenchido(cls, v: str) -> str:
-        if not v.strip():
-            # Sem segredo no .env: gera um aleatório (as sessões caem a cada reinício do backend).
-            logging.getLogger(__name__).warning("JWT_SEGREDO vazio: usando segredo aleatório temporário")
-            return secrets.token_hex(32)
-        return v
+    @model_validator(mode="after")
+    def segredo_preenchido(self) -> "Configuracao":
+        if not self.jwt_segredo.strip():
+            # Sem segredo no .env: gera um aleatório e guarda na pasta de dados, para o login
+            # continuar valendo depois que o computador reinicia.
+            arquivo = self.diretorio_dados_brutos / ".segredo_jwt"
+            try:
+                if not arquivo.exists():
+                    arquivo.parent.mkdir(parents=True, exist_ok=True)
+                    arquivo.write_text(secrets.token_hex(32))
+                self.jwt_segredo = arquivo.read_text().strip()
+            except OSError:
+                logging.getLogger(__name__).warning("JWT_SEGREDO vazio: usando segredo aleatório temporário")
+                self.jwt_segredo = secrets.token_hex(32)
+        return self
 
     @property
     def lista_tickers(self) -> list[str]:

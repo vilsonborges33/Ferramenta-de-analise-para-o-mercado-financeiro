@@ -180,6 +180,34 @@ Solução:
 - **`restart: unless-stopped`** nos containers: voltam junto com o Docker Desktop.
 - **`iniciar.bat`** (liga tudo e abre o navegador) e **`instalar-inicio-automatico.bat`** (põe o início na pasta Inicializar do Windows).
 
+## Fase 3 — Ranking completo (03/11/2026)
+
+**D-031 — Stock screening inspirado na Ward** · aprovada (usuário pediu para seguir com a recomendação)
+Referência de produto em `docs/REFERENCIA_WARD.md`. Só a organização foi aproveitada; textos, marca, paleta e dados são nossos.
+
+A página "Mais baratas" vira **Ranking de ações** (`/screening/acoes`):
+- **Filtros por faixa** (mín./máx.): DY, P/L, P/VP, ROE, margem líquida, dívida líquida/EBITDA e liquidez. Também filtra por setor da CVM.
+- **Parâmetros dos métodos** editáveis: yield de Bazin, fator de Graham e multiplicador de Lynch.
+- **Todos os métodos lado a lado**: valor de Graham, teto de Bazin, preço justo de Lynch, PEG, EY/ROC e posição na Fórmula Mágica.
+  - Cada método tem uma cor fixa no site: Graham azul, Bazin âmbar, Lynch roxo, Greenblatt laranja.
+  - "Ranquear por" escolhe o método. Ações sem dado para esse método vão para o fim, em vez de sumir.
+- **Fórmula Mágica dentro do conjunto filtrado**, sem exclusões automáticas: quem decide o universo são os filtros do usuário.
+- **BESST** como filtro rápido: bancos, energia elétrica, saneamento, seguros e telecomunicações (Luiz Barsi). O setor é identificado pelo nome do setor da CVM.
+- **"Rank GD" da Ward não foi incluído:** é um método próprio da plataforma e não está nos 10 livros.
+- **Tabela:**
+  - personalizar colunas;
+  - ordenar clicando no cabeçalho (valores ausentes sempre no fim);
+  - busca;
+  - paginação (10/20/50/100);
+  - "Atualizado em" (último fechamento entre as ações listadas).
+- **Exportação** .xlsx (formatos de % e R$) e .csv (padrão do Excel em português: `;` e vírgula decimal). As duas incluem fontes, data e aviso de não recomendação.
+- **Favoritos:**
+  - estrela na tabela e na página do ativo;
+  - exigem login e usam a tabela `favorito`, que já existia (sem mudança de esquema).
+- **Filtros salvos e colunas escolhidas** ficam no navegador (`localStorage`). Guardar no banco exigiria uma tabela nova, ou seja, mudança de esquema após a Fase 1.
+- **Login que sobrevive ao reinício:** sem `JWT_SEGREDO` no `.env`, o segredo gerado é guardado em `dados_brutos/.segredo_jwt`. Antes, cada reinício do computador desconectava o usuário.
+- O endpoint antigo `/ranking/acoes` continua existindo.
+
 ---
 
 ## Perguntas em aberto

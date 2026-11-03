@@ -8,6 +8,12 @@
   --borda: #e3e6ea;
   --destaque: #0f6b5c;
   --alerta: #9a5b00;
+  --negativo: #b42318;
+  /* Cor fixa de cada método em todo o site (filtros, colunas, cartões). */
+  --cor-graham: #2463b8;
+  --cor-bazin: #a86400;
+  --cor-lynch: #7a3fc4;
+  --cor-greenblatt: #c2410c;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -19,6 +25,11 @@
     --borda: #2a3038;
     --destaque: #4fc3a9;
     --alerta: #e0a84a;
+    --negativo: #f07a6a;
+    --cor-graham: #6ea8f0;
+    --cor-bazin: #e0b050;
+    --cor-lynch: #b48cf0;
+    --cor-greenblatt: #f08a5a;
   }
 }
 
@@ -51,4 +62,39 @@ a.link {
 }
 a.link:hover {
   text-decoration: underline;
+}
+
+/* Fundo suave na cor do método: .metodo-graham, .metodo-bazin… */
+.metodo-graham { --cor-metodo: var(--cor-graham); }
+.metodo-bazin { --cor-metodo: var(--cor-bazin); }
+.metodo-lynch { --cor-metodo: var(--cor-lynch); }
+.metodo-greenblatt { --cor-metodo: var(--cor-greenblatt); }
+.fundo-metodo {
+  background: color-mix(in srgb, var(--cor-metodo) 10%, transparent);
+}
+.texto-metodo {
+  color: var(--cor-metodo);
+}
+
+.pilula {
+  border: 1px solid var(--borda);
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+}
+.pilula[aria-pressed="true"],
+.pilula[aria-selected="true"] {
+  background: var(--destaque);
+  border-color: var(--destaque);
+  color: var(--superficie);
+}
+
+.campo {
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.5rem;
+}
+.pilula:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

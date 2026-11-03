@@ -17,7 +17,8 @@ AVISO_NAO_RECOMENDACAO = ("Resultados calculados a partir de dados públicos e d
                           "Não constituem recomendação de investimento.")
 METODOS = ("greenblatt", "graham", "bazin", "lynch")
 METRICAS_USADAS = ("basico.lpa", "basico.vpa", "basico.dy", "basico.p_l", "basico.cagr_lucro_5a",
-                   "basico.liquidez_diaria", "greenblatt.earnings_yield", "greenblatt.retorno_capital")
+                   "basico.liquidez_diaria", "greenblatt.earnings_yield", "greenblatt.retorno_capital",
+                   "basico.p_vp", "basico.roe", "basico.margem_liquida", "basico.dl_ebitda", "basico.valor_mercado")
 
 
 @dataclass(frozen=True)
