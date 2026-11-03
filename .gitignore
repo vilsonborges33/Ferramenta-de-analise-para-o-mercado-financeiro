@@ -13,3 +13,6 @@ test-results/
 playwright-report/
 *.tsbuildinfo
 next-env.d.ts
+
+# Gerado automaticamente pelo Next.js (dev/build)
+frontend/AGENTS.md
