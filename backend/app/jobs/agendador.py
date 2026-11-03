@@ -14,7 +14,8 @@ FUSO = "America/Sao_Paulo"
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     tarefas.preparar()
-    agendador = BlockingScheduler(timezone=FUSO)
+    # Computador suspenso no horário: ao acordar, roda a tarefa perdida uma vez (até 12 h de atraso).
+    agendador = BlockingScheduler(timezone=FUSO, job_defaults={"coalesce": True, "misfire_grace_time": 12 * 3600})
     ano = lambda: [date.today().year]  # noqa: E731
     agendador.add_job(tarefas.macro, CronTrigger(hour=20, minute=0, timezone=FUSO), id="macro")
     agendador.add_job(tarefas.cotacoes_do_dia, CronTrigger(day_of_week="mon-fri", hour=19, minute=0,
@@ -28,8 +29,8 @@ def main() -> None:
     agendador.add_job(tarefas.indicadores, CronTrigger(hour=5, minute=0, timezone=FUSO), id="indicadores_madrugada")
     agendador.add_job(tarefas.indicadores, CronTrigger(day_of_week="mon-fri", hour=21, minute=15, timezone=FUSO),
                       id="indicadores_noite")
-    # Instalação nova: a primeira carga roda sozinha logo após a subida do worker.
-    agendador.add_job(tarefas.carga_inicial_se_vazio, next_run_time=datetime.now(), id="carga_inicial")
+    # Ao ligar: carga inicial (instalação nova) ou busca do que ficou para trás com o computador desligado.
+    agendador.add_job(tarefas.atualizar_ao_iniciar, next_run_time=datetime.now(), id="atualizar_ao_iniciar")
     agendador.start()
 
 

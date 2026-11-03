@@ -2,12 +2,12 @@
 
 import logging
 from contextlib import contextmanager
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import func, select
 
 from app.config import obter_configuracao
-from app.db.modelos import Ativo, CotacaoDiaria, DemonstracaoLinha, Fii, Provento
+from app.db.modelos import Ativo, CotacaoDiaria, DemonstracaoLinha, Fii, Fonte, LoteIngestao, Provento
 from app.db.sessao import FabricaSessao, motor
 from app.ingestao import (
     b3_proventos,
@@ -189,12 +189,94 @@ def completar_carga(forcar: bool = False) -> None:
         _passo("indicadores", indicadores)
 
 
+def ultima_cotacao(sessao) -> date | None:
+    return sessao.scalar(select(func.max(CotacaoDiaria.data)).join(Ativo, Ativo.id == CotacaoDiaria.ativo_id)
+                         .where(Ativo.classe == "ACAO"))
+
+
+def ultima_atualizacao(sessao, *codigos: str) -> datetime | None:
+    """Fim do último lote concluído das fontes indicadas (o mais recente entre elas)."""
+    return sessao.scalar(select(func.max(LoteIngestao.concluido_em)).join(Fonte, Fonte.id == LoteIngestao.fonte_id)
+                         .where(Fonte.codigo.in_(codigos), LoteIngestao.status == "concluido"))
+
+
+def ultimo_dia_util(hoje: date) -> date:
+    dia = hoje - timedelta(days=1)
+    while dia.weekday() >= 5:
+        dia -= timedelta(days=1)
+    return dia
+
+
+def intervalo_yahoo(dias: int) -> str:
+    """Menor janela do Yahoo que cobre `dias` corridos sem cotação (com folga para feriados)."""
+    for limite, janela in ((4, "5d"), (25, "1mo"), (80, "3mo"), (170, "6mo"), (350, "1y")):
+        if dias <= limite:
+            return janela
+    return f"{dias // 365 + 1}y"
+
+
+def _desatualizada(momento: datetime | None, agora: datetime, horas: int = 20) -> bool:
+    return momento is None or agora - momento > timedelta(hours=horas)
+
+
+def por_em_dia(hoje: date | None = None, agora: datetime | None = None) -> list[str]:
+    """Ao ligar a aplicação: busca o que ficou para trás enquanto o computador estava desligado.
+    Só baixa o que está desatualizado; devolve os passos executados."""
+    hoje = hoje or date.today()
+    agora = agora or datetime.now(UTC)
+    with FabricaSessao() as sessao:
+        cotacao = ultima_cotacao(sessao)
+        macro_em = ultima_atualizacao(sessao, "BCB_SGS", "TESOURO_TD")
+        cvm_em = ultima_atualizacao(sessao, "CVM_DFP", "CVM_ITR")
+        fii_em = ultima_atualizacao(sessao, "CVM_FII_MENSAL")
+        proventos_em = ultima_atualizacao(sessao, "B3_PROVENTOS", "FNET_RENDIMENTOS")
+    feitos: list[str] = []
+    if cotacao is None or cotacao < ultimo_dia_util(hoje):
+        dias = (hoje - cotacao).days if cotacao else 365 * ANOS_CARGA_INICIAL
+        log.info("cotações paradas desde %s: buscando os dias que faltam", cotacao)
+        if usa_yahoo():
+            _passo("cotações atrasadas", _executar, "Yahoo Finance (atrasadas)", yahoo.ingerir, None,
+                   intervalo_yahoo(dias))
+        else:
+            for n in range(min(dias, 60), -1, -1):  # COTAHIST diário; dias sem pregão são pulados
+                _passo("cotações atrasadas", cotacoes_do_dia, hoje - timedelta(days=n))
+        feitos.append("cotacoes")
+    if not usa_yahoo() and _desatualizada(proventos_em, agora):
+        _passo("proventos", proventos, max(10, (agora - proventos_em).days + 3) if proventos_em else 400)
+        feitos.append("proventos")
+    if _desatualizada(macro_em, agora):
+        _passo("macro", macro)
+        feitos.append("macro")
+    if feitos:  # números novos na tela antes dos downloads demorados da CVM
+        _passo("indicadores", indicadores)
+    if _desatualizada(cvm_em, agora) or _desatualizada(fii_em, agora):
+        _passo("cadastro CVM", companhias)
+        _passo("balanços", demonstracoes, [hoje.year])
+        _passo("informes de FII", fiis, [hoje.year])
+        _passo("indicadores", indicadores)
+        feitos.append("cvm")
+    return feitos
+
+
+def atualizar_ao_iniciar() -> None:
+    """Primeira subida: carga inicial. Depois: completa o que faltar e põe os dados em dia."""
+    with FabricaSessao() as sessao:
+        vazio = precisa_carga_inicial(sessao)
+    if not vazio:
+        completar_carga()
+        with trava_exclusiva() as obtida:
+            if not obtida:
+                log.warning("já existe uma carga em andamento; atualização da inicialização ignorada")
+                return
+            feitos = por_em_dia()
+        log.info("atualização da inicialização: %s", ", ".join(feitos) or "dados já estavam em dia")
+        return
+    carga_inicial_se_vazio()
+
+
 def carga_inicial_se_vazio() -> None:
     with FabricaSessao() as sessao:
-        if not precisa_carga_inicial(sessao):
-            parcial = True
-        else:
-            parcial = False
+        parcial = not precisa_carga_inicial(sessao)
     if parcial:
         completar_carga()
         return

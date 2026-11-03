@@ -36,6 +36,7 @@ def main() -> None:
     d.add_argument("ticker", nargs="?", default="PETR4")
     sub.add_parser("atualizar-mercado")
     sub.add_parser("completar")
+    sub.add_parser("por-em-dia")
     i = sub.add_parser("indicadores")
     i.add_argument("--tickers", nargs="*")
     a = p.parse_args()
@@ -65,6 +66,8 @@ def main() -> None:
             tarefas.indicadores()
         case "completar":
             tarefas.completar_carga(forcar=True)
+        case "por-em-dia":
+            tarefas.atualizar_ao_iniciar()
         case "atualizar-mercado":
             ano = date.today().year
             tarefas.cotacoes_historicas(list(range(ano - tarefas.ANOS_CARGA_INICIAL, ano + 1)))

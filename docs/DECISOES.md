@@ -167,6 +167,19 @@ Correções:
 - **Complemento:** o comando `completar` reprocessa os informes de FII quando há fundos sem ticker e busca no Yahoo as cotações dos tickers que ainda não têm nenhuma.
 - **Diagnóstico:** mostra quantos FIIs existem, quantos têm ISIN e quantos têm ticker.
 
+**D-030 — Atualização ao ligar a aplicação** · 03/11/2026 · aprovada (pedido do usuário)
+Problema: o sistema roda no computador pessoal. Com o computador desligado no horário, a tarefa do dia se perdia.
+
+Solução:
+- **Ao subir, o worker põe os dados em dia** (`por_em_dia`):
+  - cotações paradas antes do último dia útil → Yahoo com a menor janela que cobre o atraso (5d, 1mo, 3mo, 6mo, 1y, Ny);
+  - Selic/Tesouro e, no modo b3, proventos → se a última atualização tem mais de 20 h;
+  - recálculo dos indicadores;
+  - só depois, os downloads demorados da CVM (cadastro, balanços e informes do ano), se estiverem com mais de 20 h, e novo recálculo.
+- **Tarefas perdidas por suspensão** rodam ao acordar (até 12 h de atraso, uma vez só).
+- **`restart: unless-stopped`** nos containers: voltam junto com o Docker Desktop.
+- **`iniciar.bat`** (liga tudo e abre o navegador) e **`instalar-inicio-automatico.bat`** (põe o início na pasta Inicializar do Windows).
+
 ---
 
 ## Perguntas em aberto

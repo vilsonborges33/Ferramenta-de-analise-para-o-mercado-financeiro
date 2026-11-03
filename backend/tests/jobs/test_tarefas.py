@@ -106,3 +106,46 @@ def test_tickers_sem_cotacao_e_fiis_sem_ticker(sessao):
     with lote(sessao, "CVM_FII_MENSAL") as ctx:
         sessao.add(Fii(cnpj="1", nome="F", isin="BRABCDCTF000", **ctx.procedencia(date(2025, 1, 1))))
     assert tarefas.fiis_sem_ticker(sessao)
+
+
+def test_intervalo_yahoo_cobre_os_dias_parados():
+    assert tarefas.intervalo_yahoo(1) == "5d"
+    assert tarefas.intervalo_yahoo(10) == "1mo"
+    assert tarefas.intervalo_yahoo(60) == "3mo"
+    assert tarefas.intervalo_yahoo(300) == "1y"
+    assert tarefas.intervalo_yahoo(800) == "3y"
+
+
+def test_ultimo_dia_util():
+    from datetime import date
+    assert tarefas.ultimo_dia_util(date(2026, 11, 3)) == date(2026, 11, 2)  # terça → segunda
+    assert tarefas.ultimo_dia_util(date(2026, 11, 2)) == date(2026, 10, 30)  # segunda → sexta
+
+
+def test_por_em_dia_busca_so_o_que_esta_atrasado(sessao, monkeypatch):
+    from datetime import UTC, date, datetime
+    from decimal import Decimal
+
+    from sqlalchemy import select
+
+    from app.db.modelos import Ativo, CotacaoDiaria
+    carregar_companhias(sessao)
+    ativo = sessao.scalars(select(Ativo).where(Ativo.classe == "ACAO")).first()
+    with lote(sessao, "YAHOO_FINANCE") as ctx:
+        sessao.add(CotacaoDiaria(ativo_id=ativo.id, data=date(2026, 10, 20), fechamento=Decimal(1),
+                                 **ctx.procedencia(date(2026, 10, 20))))
+    with lote(sessao, "BCB_SGS"), lote(sessao, "CVM_DFP"), lote(sessao, "CVM_FII_MENSAL"):
+        pass
+    sessao.commit()
+    chamadas = []
+    monkeypatch.setattr(tarefas.yahoo, "ingerir", lambda s, t, intervalo: chamadas.append(("yahoo", intervalo)))
+    monkeypatch.setattr(tarefas, "macro", lambda: chamadas.append(("macro",)))
+    monkeypatch.setattr(tarefas, "companhias", lambda: chamadas.append(("cvm",)))
+    monkeypatch.setattr(tarefas, "indicadores", lambda: chamadas.append(("indicadores",)))
+    agora = datetime.now(UTC)
+    # cotações paradas há 14 dias; macro e CVM atualizados agora
+    assert tarefas.por_em_dia(date(2026, 11, 3), agora) == ["cotacoes"]
+    assert chamadas == [("yahoo", "1mo"), ("indicadores",)]
+    # dados em dia: nada a fazer
+    chamadas.clear()
+    assert tarefas.por_em_dia(date(2026, 10, 21), agora) == [] and chamadas == []

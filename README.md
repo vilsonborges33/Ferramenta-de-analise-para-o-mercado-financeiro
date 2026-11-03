@@ -35,6 +35,16 @@ Clone com Git uma única vez e, a cada atualização, dê dois cliques em `atual
 versão mais recente (`git pull`) e reconstrói os containers. As migrações do banco rodam sozinhas
 quando o backend sobe; os dados já carregados são preservados.
 
+## Dados sempre em dia (Windows)
+
+- **`iniciar.bat`** (dois cliques): abre o Docker Desktop se preciso, liga o sistema e abre o navegador.
+- **`instalar-inicio-automatico.bat`** (uma vez): faz o sistema ligar sozinho ao entrar no Windows.
+  Para desfazer: `instalar-inicio-automatico.bat remover`.
+- Toda vez que o sistema liga, o worker confere a data dos dados e busca só o que ficou para trás
+  (cotações e dividendos dos dias perdidos, Selic/Tesouro e, se estiverem com mais de um dia,
+  balanços e informes da CVM); depois recalcula os indicadores. Para rodar à mão: `cli por-em-dia`.
+- Computador suspenso no horário de uma tarefa: ela roda ao acordar (até 12 h de atraso).
+
 ## Desenvolvimento
 
 ```bash
