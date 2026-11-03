@@ -39,6 +39,22 @@ def volatilidade_carteira(pesos: Sequence[float], cov: np.ndarray) -> float:
     return float(np.sqrt(w @ np.asarray(cov) @ w))
 
 
+def volatilidade_anualizada(precos: Sequence[float], periodos_ano: int = PERIODOS_ANO) -> Resultado:
+    """Desvio-padrão dos retornos diários × √252. Exige ao menos 20 pregões."""
+    if len(precos) < 21:
+        return indisponivel("histórico curto: menos de 20 pregões")
+    r = retornos_simples(precos)
+    return ok(float(np.std(r, ddof=1) * np.sqrt(periodos_ano)), pregoes=len(r))
+
+
+def taxa_acumulada(taxas_diarias_percentual: Sequence[float]) -> Resultado:
+    """Acumula taxas diárias em % (ex.: CDI do SGS): Π(1 + t/100) − 1."""
+    if not taxas_diarias_percentual:
+        return indisponivel("série da taxa livre de risco indisponível")
+    return ok(float(np.prod(1 + np.asarray(taxas_diarias_percentual, dtype=float) / 100) - 1),
+              dias=len(taxas_diarias_percentual))
+
+
 def sharpe(retorno: float | None, volatilidade: float | None, taxa_livre_risco: float) -> Resultado:
     """(retorno − rf) ÷ volatilidade."""
     if retorno is None or volatilidade is None:

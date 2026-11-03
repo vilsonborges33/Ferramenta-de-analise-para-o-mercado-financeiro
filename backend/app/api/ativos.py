@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.sessao import obter_sessao
 from app.ingestao.bcb_sgs import SERIES
 from app.metodologias.registro import POR_ID, TODAS
-from app.servicos import consultas, ranking
+from app.servicos import consultas, historico, ranking
 from app.servicos.ranking import METODOS, Parametros
 
 rotas = APIRouter(tags=["dados"])
@@ -41,6 +41,27 @@ def detalhar_fii(ticker: str, sessao: Session = Depends(obter_sessao)):
 @rotas.get("/ativos/{ticker}/cotacoes")
 def cotacoes(ticker: str, sessao: Session = Depends(obter_sessao)):
     return consultas.historico_cotacoes(sessao, ticker)
+
+
+def _ou_404(dados):
+    if dados is None:
+        raise HTTPException(404, "ativo não encontrado")
+    return dados
+
+
+@rotas.get("/acoes/{ticker}/historico")
+def historico_anual(ticker: str, anos: int = Query(10, ge=1, le=20), sessao: Session = Depends(obter_sessao)):
+    return _ou_404(historico.historico_anual(sessao, ticker, anos))
+
+
+@rotas.get("/ativos/{ticker}/dividendos")
+def dividendos(ticker: str, anos: int = Query(10, ge=1, le=20), sessao: Session = Depends(obter_sessao)):
+    return _ou_404(historico.dividendos(sessao, ticker, anos))
+
+
+@rotas.get("/ativos/{ticker}/risco")
+def risco(ticker: str, sessao: Session = Depends(obter_sessao)):
+    return _ou_404(historico.risco(sessao, ticker))
 
 
 @rotas.get("/metodologias")

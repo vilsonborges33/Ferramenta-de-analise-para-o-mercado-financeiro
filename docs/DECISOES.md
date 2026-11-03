@@ -208,6 +208,28 @@ A página "Mais baratas" vira **Ranking de ações** (`/screening/acoes`):
 - **Login que sobrevive ao reinício:** sem `JWT_SEGREDO` no `.env`, o segredo gerado é guardado em `dados_brutos/.segredo_jwt`. Antes, cada reinício do computador desconectava o usuário.
 - O endpoint antigo `/ranking/acoes` continua existindo.
 
+**D-032 — Página da ação reorganizada** · 03/11/2026 · aprovada (usuário pediu para seguir)
+- **Barra de seções fixa:** Cotação, Valuation, Dividendos, Indicadores, Histórico e Empresa.
+- **6 cards de destaque:** ROE, P/L, DY 12m, liquidez, volatilidade 12m e Sharpe 12m.
+  - Volatilidade = desvio-padrão dos retornos diários × √252.
+  - Sharpe = (retorno de 12 meses − CDI de 12 meses) ÷ volatilidade. O CDI vem do SGS, acumulado dia a dia.
+  - As duas são calculadas sob demanda (`/ativos/{t}/risco`), com página em "Como é calculado". O Sharpe passa a valer também para ações e FIIs.
+- **Cotação:** períodos de 1 mês a tudo, volume financeiro, zoom e resumo (início, variação, mínima e máxima). Os fechamentos não são ajustados por proventos, e o gráfico avisa isso.
+- **Valuation pelos livros:** Graham, Bazin, Lynch e Fórmula Mágica em quatro cartões coloridos.
+  - O usuário ajusta fator, yield mínimo e multiplicador com –/+.
+  - O recálculo é feito no backend (`/acoes/{t}/valuation`), com as mesmas contas do ranking.
+  - A posição na Fórmula Mágica é entre todas as ações com cotação.
+- **Dividendos** (`/ativos/{t}/dividendos`):
+  - total líquido por ano e DY do ano = total ÷ último fechamento do ano;
+  - DY médio, mínimo e máximo só de anos completos (o ano corrente aparece como parcial);
+  - tabela de pagamentos com valor bruto e líquido.
+- **Indicadores:** grupos recolhíveis. Nas ações, os grupos dos métodos saem daqui e vão para o painel de valuation.
+- **Histórico anual** (`/acoes/{t}/historico`): DRE e balanço de 5 ou 10 anos, a partir das DFP padronizadas, em gráfico e tabela. Inclui lucro × cotação no fim do exercício e o CAGR do patrimônio.
+- **Não incluído agora:**
+  - cotação ajustada por proventos (exige guardar o fechamento ajustado do Yahoo, uma coluna nova);
+  - rentabilidade comparada com índices (fica na Fase 6);
+  - acionistas e comunidade (fora do escopo).
+
 ---
 
 ## Perguntas em aberto

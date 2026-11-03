@@ -297,7 +297,13 @@ METODOS: tuple[Metrica, ...] = (
             "Dividend yield + crescimento do lucro + variação anual do P/L", BOGLE),
     # 2 — Lo & Foerster
     _metodo("portfolio.sharpe", "Índice de Sharpe", "Portfólio", "x", "(retorno − rf) ÷ volatilidade", LO_FOERSTER,
-            parametros=(_RF,), aplica_a=("CARTEIRA",)),
+            parametros=(_RF,), aplica_a=("ACAO", "FII", "CARTEIRA"),
+            premissas=("Na página do ativo: retorno dos últimos 12 meses (sem dividendos) e CDI acumulado no "
+                       "mesmo período como taxa livre de risco.",)),
+    _metodo("portfolio.volatilidade", "Volatilidade (12 m)", "Portfólio", "%",
+            "Desvio-padrão dos retornos diários × √252", LO_FOERSTER, aplica_a=("ACAO", "FII", "CARTEIRA"),
+            premissas=("Fechamentos diários dos últimos 12 meses.",),
+            limitacoes=("Cotações sem ajuste por proventos: a data-ex aparece como queda.",)),
     _metodo("portfolio.beta", "Beta (CAPM)", "Portfólio", "x", "cov(ativo, mercado) ÷ var(mercado)", LO_FOERSTER,
             premissas=("Retornos diários alinhados com o índice de mercado.",)),
     _metodo("portfolio.fronteira", "Fronteira eficiente de Markowitz", "Portfólio", "un",

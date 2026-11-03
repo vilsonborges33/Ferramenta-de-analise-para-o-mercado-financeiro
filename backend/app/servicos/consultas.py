@@ -146,13 +146,15 @@ def detalhe(sessao: Session, ticker: str) -> dict | None:
     return {**info, "cotacao": _cotacao(sessao, ativo.id, fontes), "grupos": grupos}
 
 
-def historico_cotacoes(sessao: Session, ticker: str, limite: int = 750) -> list[dict]:
+def historico_cotacoes(sessao: Session, ticker: str, limite: int = 2600) -> list[dict]:
     ativo = sessao.scalar(select(Ativo).where(Ativo.ticker == ticker.upper()))
     if ativo is None:
         return []
     linhas = sessao.scalars(select(CotacaoDiaria).where(CotacaoDiaria.ativo_id == ativo.id)
                             .order_by(desc(CotacaoDiaria.data)).limit(limite))
-    return [{"data": c.data.isoformat(), "fechamento": float(c.fechamento)} for c in reversed(list(linhas))]
+    return [{"data": c.data.isoformat(), "fechamento": float(c.fechamento),
+             "volume": None if c.volume_financeiro is None else float(c.volume_financeiro)}
+            for c in reversed(list(linhas))]
 
 
 def serie(sessao: Session, codigo: str, desde=None) -> list[dict]:

@@ -24,7 +24,7 @@ test("página do ativo mostra procedência ao tocar no ⓘ", async ({ page }, in
   await page.waitForURL(/\/acoes\/.+/);
   const larguras = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
   expect(larguras[0]).toBeLessThanOrEqual(larguras[1]);
-  await page.getByRole("button", { name: /Procedência de P\/L/ }).click();
+  await page.getByRole("button", { name: /Procedência de P\/L/ }).first().click();
   const painel = page.getByRole("dialog");
   await expect(painel).toContainText("Como é calculado");
   const caixa = await painel.boundingBox();
@@ -69,4 +69,22 @@ test("favoritos: entrar, marcar a estrela e filtrar", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Remover .* dos favoritos/ }).first()).toBeVisible();
   await page.getByRole("button", { name: "★ Favoritos" }).click();
   await expect(page.locator("tbody a")).toHaveCount(1);
+});
+
+test("página da ação: seções, valuation ajustável, dividendos e histórico", async ({ page }) => {
+  await page.goto(`/acoes/${process.env.TICKER_TESTE ?? "EXMP3"}`);
+  test.skip((await page.locator("h1").count()) === 0, "base sem a ação de teste");
+  for (const secao of ["Cotação", "Dividendos", "Indicadores", "Empresa"])
+    await expect(page.getByRole("navigation", { name: "Seções" }).getByRole("link", { name: secao })).toBeVisible();
+  const valuation = page.locator("#valuation");
+  await expect(valuation).toContainText("Não constituem recomendação");
+  await expect(valuation).toContainText("Margem de segurança");
+  const fator = valuation.getByText("22,5", { exact: true });
+  if (await fator.isVisible()) {
+    await valuation.getByRole("button", { name: "Aumentar Fator" }).click();
+    await expect(valuation.getByText("23", { exact: true })).toBeVisible();
+  }
+  await page.locator("#historico").getByRole("tab", { name: "Balanço" }).click();
+  const larguras = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
+  expect(larguras[0]).toBeLessThanOrEqual(larguras[1]);
 });

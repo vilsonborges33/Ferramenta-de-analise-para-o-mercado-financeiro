@@ -113,3 +113,16 @@ def desfavoritar(ticker: str, usuario: Usuario = Depends(usuario_atual), sessao:
     if ativo_id is not None:
         sessao.execute(delete(Favorito).where(Favorito.usuario_id == usuario.id, Favorito.ativo_id == ativo_id))
         sessao.commit()
+
+
+@rotas.get("/acoes/{ticker}/valuation")
+def valuation(ticker: str, filtros: FiltrosScreening = Depends(_filtros), sessao: Session = Depends(obter_sessao)):
+    """Graham, Bazin, Lynch e Greenblatt de uma ação com os parâmetros escolhidos na página do ativo.
+    A posição na Fórmula Mágica é entre todas as ações com cotação."""
+    r = screening_acoes(sessao, FiltrosScreening(yield_bazin=filtros.yield_bazin, fator_graham=filtros.fator_graham,
+                                                 fator_lynch=filtros.fator_lynch))
+    item = next((i for i in r["itens"] if i["ticker"] == ticker.upper()), None)
+    if item is None:
+        raise HTTPException(404, "ação sem cotação ou não encontrada")
+    total_formula = sum(1 for i in r["itens"] if i["greenblatt_posicao"] is not None)
+    return {**item, "aviso": r["aviso"], "parametros": r["parametros"], "total_formula_magica": total_formula}

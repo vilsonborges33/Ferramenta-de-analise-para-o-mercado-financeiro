@@ -34,6 +34,7 @@ export type ItemLista = {
 export type Detalhe = {
   ticker: string;
   classe: string;
+  isin?: string;
   nome?: string;
   cnpj?: string;
   setor?: string;
