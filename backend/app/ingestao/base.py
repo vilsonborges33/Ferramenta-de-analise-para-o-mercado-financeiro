@@ -37,6 +37,8 @@ FONTES: tuple[DefinicaoFonte, ...] = (
                    "https://dados.cvm.gov.br/dataset/cia_aberta-doc-itr", "ODbL"),
     DefinicaoFonte("CVM_FII_MENSAL", "CVM — Informe mensal de FII",
                    "https://dados.cvm.gov.br/dataset/fii-doc-inf_mensal", "ODbL"),
+    DefinicaoFonte("CVM_FII_TRIMESTRAL", "CVM — Informe trimestral de FII (imóveis)",
+                   "https://dados.cvm.gov.br/dataset/fii-doc-inf_trimestral", "ODbL"),
     DefinicaoFonte("B3_COTAHIST", "B3 — Séries históricas de cotações (COTAHIST)",
                    "https://www.b3.com.br/pt_br/market-data-e-indices/servicos-de-dados/market-data/historico/"
                    "mercado-a-vista/series-historicas/", "Política de Market Data B3 (uso pessoal)"),

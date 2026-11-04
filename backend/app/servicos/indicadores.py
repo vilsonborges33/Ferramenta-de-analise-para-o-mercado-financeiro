@@ -19,6 +19,7 @@ from app.db.modelos import (
     DemonstracaoPadronizada,
     Empresa,
     Fii,
+    FiiImovel,
     FiiInformeMensal,
     Fonte,
     IndicadorCalculado,
@@ -346,7 +347,7 @@ class Calculadora:
         if fii is None:
             sem = indisponivel("dado indisponível: fundo sem informe mensal ligado ao ticker (ISIN)")
             for m in ("fii.p_vp", "fii.vp_cota", "fii.patrimonio_liquido", "fii.numero_cotistas",
-                      "fii.rentab_patrimonial_12m", "fii.dy_informado_12m"):
+                      "fii.rentab_patrimonial_12m", "fii.dy_informado_12m", "fii.vacancia", "fii.alavancagem"):
                 calculos.append(Calculo(m, sem, [], None))
             return calculos
 
@@ -379,9 +380,29 @@ class Calculadora:
             Calculo("fii.dy_informado_12m", mfii.soma_percentuais(dy),
                     [i_inf("dividend_yield_mes", i) for i in ultimos12], data_inf),
         ]
+        ativo_total = float(ultimo.ativo_total) if ultimo and ultimo.ativo_total is not None else None
+        passivo = float(ultimo.total_passivo) if ultimo and ultimo.total_passivo is not None else None
+        calculos.append(Calculo("fii.alavancagem", mfii.alavancagem(passivo, ativo_total),
+                                [i_inf("total_passivo"), i_inf("ativo_total")], data_inf))
+        imoveis = self.imoveis(fii.id)
+        vac = mfii.vacancia_ponderada([(None if i.area_m2 is None else float(i.area_m2),
+                                        None if i.percentual_vacancia is None else float(i.percentual_vacancia))
+                                       for i in imoveis])
+        i_vac = [self._insumo(f"vacancia {i.nome}", None if i.percentual_vacancia is None else
+                              float(i.percentual_vacancia), i, area_m2=None if i.area_m2 is None else float(i.area_m2),
+                              competencia=i.competencia.isoformat()) for i in imoveis[:30]]
+        calculos.append(Calculo("fii.vacancia", vac, i_vac, imoveis[0].competencia if imoveis else None))
         for calc in calculos:
             calc.insumos = [i for i in calc.insumos if i]
         return calculos
+
+    def imoveis(self, fii_id: int) -> list[FiiImovel]:
+        """Imóveis do informe trimestral mais recente do fundo."""
+        ultima = self.sessao.scalar(select(func.max(FiiImovel.competencia)).where(FiiImovel.fii_id == fii_id))
+        if ultima is None:
+            return []
+        return list(self.sessao.scalars(select(FiiImovel).where(FiiImovel.fii_id == fii_id,
+                                                               FiiImovel.competencia == ultima)))
 
     def _informes(self, fii_id: int) -> list[FiiInformeMensal]:
         """Informes mensais em ordem cronológica, versão mais recente de cada competência."""

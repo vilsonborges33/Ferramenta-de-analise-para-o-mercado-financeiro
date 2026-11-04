@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { BuscaAtivos } from "@/componentes/BuscaAtivos";
 
 const COLUNAS = [
@@ -12,7 +13,10 @@ const COLUNAS = [
 export default function Fiis() {
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Fundos imobiliários</h1>
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <h1 className="text-2xl font-semibold">Fundos imobiliários</h1>
+        <Link href="/fiis/ranking" className="link text-sm">Ver o ranking de FIIs com filtros →</Link>
+      </div>
       <BuscaAtivos base="fiis" colunas={COLUNAS} exemplo="HGLG11" />
     </div>
   );

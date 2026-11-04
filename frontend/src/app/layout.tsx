@@ -18,7 +18,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </Link>
             <Link href="/acoes">Ações</Link>
             <Link href="/fiis">FIIs</Link>
-            <Link href="/mais-baratas">Ranking</Link>
+            <Link href="/mais-baratas">Ranking ações</Link>
+            <Link href="/fiis/ranking">Ranking FIIs</Link>
             <Link href="/valuations">Valuation</Link>
             <Link href="/metodologia">Como é calculado</Link>
             <Link href="/status">Status</Link>

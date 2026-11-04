@@ -162,6 +162,13 @@ METRICAS: tuple[Metrica, ...] = (
             "Soma dos percentuais mensais de dividend yield informados à CVM", GRAHAM, aplica_a=("FII",),
             limitacoes=("Percentual calculado pelo administrador; a base (cota patrimonial ou de mercado) "
                         "não é padronizada entre fundos. Não substitui o DY por proventos.",)),
+    Metrica("fii.vacancia", "Vacância física", "Operacional", "%",
+            "Σ(área × vacância) ÷ Σ área dos imóveis do informe trimestral (média simples se faltar a área)", GRAHAM,
+            aplica_a=("FII",), limitacoes=("Informe trimestral: pode ter até 3 meses de defasagem.",
+                                           "Só fundos com imóveis; fundos de papel não têm vacância.")),
+    Metrica("fii.alavancagem", "Alavancagem bruta", "Endividamento", "%",
+            "Passivo total ÷ ativo total (informe mensal CVM)", GRAHAM, aplica_a=("FII",),
+            limitacoes=("Inclui rendimentos a distribuir e obrigações por compra de imóveis, além de dívida.",)),
 )
 
 

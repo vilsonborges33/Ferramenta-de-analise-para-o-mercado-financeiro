@@ -205,3 +205,34 @@ def test_fii_sem_coluna_cnpj_falha():
     geral, comp, ap = _fii_csvs()
     with pytest.raises(EsquemaInesperado):
         cvm_fii.parse(geral.drop(columns=["CNPJ_Fundo"]), comp, ap)
+
+
+def test_informe_trimestral_de_fii_imoveis_e_vacancia(sessao):
+    import io
+    import zipfile
+    from datetime import date
+
+    from app.db.modelos import Fii, FiiImovel
+    from app.ingestao import cvm_fii_trimestral
+    with lote(sessao, "CVM_FII_MENSAL") as ctx:
+        sessao.add(Fii(cnpj="11.111.111/0001-11", nome="FII EXEMPLO", **ctx.procedencia(date(2025, 9, 30))))
+    csv = ("CNPJ_Fundo_Classe;Data_Referencia;Versao;Nome_Imovel;Endereco;Area;Numero_Unidades;"
+           "Percentual_Vacancia;Percentual_Inadimplencia;Percentual_Receitas_FII\n"
+           "11.111.111/0001-11;2025-09-30;1;Galpão A;Rod. X km 1;1000;1;10,0;0;60,0\n"
+           "11.111.111/0001-11;2025-09-30;2;Galpão A;Rod. X km 1;1000;1;5,0;0;60,0\n"
+           "11.111.111/0001-11;2025-09-30;2;Galpão B;Rod. Y km 2;3000;1;0,0;1,5;40,0\n"
+           "99.999.999/0001-99;2025-09-30;1;Fundo sem cadastro;;10;1;0;0;100\n")
+    outro = "CNPJ_Fundo_Classe;Data_Referencia;Versao;Nome_Imovel;Area\n11.111.111/0001-11;2025-09-30;1;Terreno;5\n"
+    pacote = io.BytesIO()
+    with zipfile.ZipFile(pacote, "w") as z:
+        z.writestr("inf_trimestral_fii_imovel_renda_acabado_2025.csv", csv.encode("latin-1"))
+        z.writestr("inf_trimestral_fii_terreno_2025.csv", outro.encode("latin-1"))  # sem vacância: ignorado
+    with zipfile.ZipFile(pacote) as z, lote(sessao, "CVM_FII_TRIMESTRAL") as ctx:
+        assert cvm_fii_trimestral.processar_zip(ctx, z) == 2  # versão 2; fundo sem cadastro fica de fora
+    imoveis = {i.nome: i for i in sessao.query(FiiImovel)}
+    assert set(imoveis) == {"Galpão A", "Galpão B"}
+    assert float(imoveis["Galpão A"].percentual_vacancia) == pytest.approx(0.05)  # 5% → fração
+    assert float(imoveis["Galpão B"].area_m2) == 3000
+    with zipfile.ZipFile(pacote) as z, lote(sessao, "CVM_FII_TRIMESTRAL") as ctx:
+        cvm_fii_trimestral.processar_zip(ctx, z)  # reprocessar substitui, não duplica
+    assert sessao.query(FiiImovel).count() == 2

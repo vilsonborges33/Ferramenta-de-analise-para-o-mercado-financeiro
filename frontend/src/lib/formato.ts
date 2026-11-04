@@ -7,6 +7,7 @@ const NOMES_FONTES: Record<string, string> = {
   CVM_CADASTRO: "CVM — Cadastro",
   CVM_FCA: "CVM — FCA",
   CVM_FII_MENSAL: "CVM — Informe mensal de FII",
+  CVM_FII_TRIMESTRAL: "CVM — Informe trimestral de FII",
   B3_COTAHIST: "B3 — COTAHIST",
   BRAPI: "brapi.dev",
   YAHOO_FINANCE: "Yahoo Finance",

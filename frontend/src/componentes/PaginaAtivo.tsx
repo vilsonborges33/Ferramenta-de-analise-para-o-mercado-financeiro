@@ -4,6 +4,7 @@ import { CartoesRisco } from "@/componentes/CartoesRisco";
 import { PainelValuation } from "@/componentes/PainelValuation";
 import { SecaoDividendos } from "@/componentes/SecaoDividendos";
 import { SecaoHistorico } from "@/componentes/SecaoHistorico";
+import { PainelGordonFii, SecoesFundo } from "@/componentes/SecoesFundo";
 import { GraficoCotacao } from "@/componentes/GraficoCotacao";
 import { Numero } from "@/componentes/Numero";
 import { formatarData, formatarValor, nomeFonte } from "@/lib/formato";
@@ -11,6 +12,12 @@ import type { Detalhe } from "@/lib/tipos";
 
 const METODOS_DE_PRECO = ["Graham", "Bazin", "Lynch", "Greenblatt"];
 const DESTAQUES = ["basico.roe", "basico.p_l", "basico.dy", "basico.liquidez_diaria"];
+const DESTAQUES_FII = ["fii.p_vp", "basico.dy", "fii.vacancia", "fii.alavancagem"];
+const SECOES_FII = [
+  ["cotacao", "Cotação"], ["valuation", "Valuation"], ["dividendos", "Rendimentos"], ["indicadores", "Indicadores"],
+  ["composicao", "Composição"], ["endividamento", "Endividamento"], ["imoveis", "Imóveis"], ["historico", "Histórico"],
+  ["documentos", "Documentos"], ["empresa", "Fundo"],
+] as const;
 const SECOES_ACAO = [
   ["cotacao", "Cotação"], ["valuation", "Valuation"], ["dividendos", "Dividendos"], ["indicadores", "Indicadores"],
   ["historico", "Histórico"], ["empresa", "Empresa"],
@@ -33,8 +40,9 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
     .filter(([grupo]) => !(acao && METODOS_DE_PRECO.includes(grupo))) // nas ações, os métodos ficam no painel de valuation
     .sort(([a], [b]) => ORDEM_GRUPOS.indexOf(a) - ORDEM_GRUPOS.indexOf(b));
   const todos = Object.values(ativo.grupos).flat();
-  const destaques = DESTAQUES.map((id) => todos.find((n) => n.metrica === id)).filter((n) => n !== undefined);
-  const secoes = acao ? SECOES_ACAO : SECOES_ACAO.filter(([id]) => id !== "valuation" && id !== "historico");
+  const destaques = (acao ? DESTAQUES : DESTAQUES_FII).map((id) => todos.find((n) => n.metrica === id))
+    .filter((n) => n !== undefined);
+  const secoes = acao ? SECOES_ACAO : SECOES_FII;
   const fichas: [string, string | undefined][] = [
     ["CNPJ", ativo.cnpj],
     ["Setor (CVM)", ativo.setor],
@@ -109,6 +117,12 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
         <GraficoCotacao ticker={ativo.ticker} />
       </Secao>
 
+      {!acao && (
+        <Secao id="valuation" titulo="Valuation — preço teto pelo Gordon ajustado">
+          <PainelGordonFii ticker={ativo.ticker} />
+        </Secao>
+      )}
+
       {acao && (
         <Secao id="valuation" titulo="Valuation pelos livros">
           <PainelValuation ticker={ativo.ticker} />
@@ -118,7 +132,7 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
         </Secao>
       )}
 
-      <Secao id="dividendos" titulo="Dividendos">
+      <Secao id="dividendos" titulo={acao ? "Dividendos" : "Rendimentos"}>
         <SecaoDividendos ticker={ativo.ticker} />
       </Secao>
 
@@ -144,6 +158,8 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
           ))}
         </div>
       </Secao>
+
+      {!acao && <SecoesFundo ticker={ativo.ticker} />}
 
       {acao && (
         <Secao id="historico" titulo="Histórico anual">

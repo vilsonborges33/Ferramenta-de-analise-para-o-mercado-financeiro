@@ -276,6 +276,33 @@ A conferência da Fase 3 contra o Investidor 10 ficou pendente: este ambiente n�
 - **Exportação do DCF para .xlsx com fórmulas abertas:** aba Premissas (células amarelas editáveis) e aba DCF com fórmulas. O teste recalcula a planilha no LibreOffice e confere o valor por ação com o do sistema, para FCFF e FCFE.
 - **Todo resultado** traz o aviso de não recomendação e o link para "Como é calculado".
 
+## Fase 5 — Fundos imobiliários (04/11/2026)
+
+**D-036 — Página do fundo, Gordon ajustado, FNET e Fund Screening** · aprovada (usuário pediu para seguir à Fase 5)
+- **Composição do ativo:** vem do detalhamento "ativo_passivo" do informe mensal da CVM, que já era guardado em `extras` (sem mudança de esquema).
+  - Grupos: Imóveis, CRI/CRA, LCI/LCA/LH/LIG, Cotas de FII, Ações e sociedades, Caixa e renda fixa, Outros valores mobiliários, Valores a receber.
+  - Os subtotais (`Total_*`, `Direitos_Bens_Imoveis`) não entram, para não contar duas vezes.
+- **Tipo do fundo:** Tijolo, Papel (CRI/CRA + LCI etc.) ou Fundo de fundos quando um grupo passa de 60% do ativo classificado; senão Híbrido.
+- **Endividamento:** alavancagem bruta = passivo total ÷ ativo total, com as obrigações separadas (aquisição de imóveis, securitização, adiantamentos, rendimentos a distribuir, taxas, outros).
+- **Imóveis e vacância:** nova fonte `CVM_FII_TRIMESTRAL` (informe trimestral, ODbL), gravada na tabela `fii_imovel`, que já existia.
+  - Vacância física = média ponderada pela área (média simples se faltar a área).
+  - As colunas são achadas pelo nome, e percentuais em 0–100 viram fração.
+  - ⚠️ A leitura foi testada com arquivo simulado; o arquivo real da CVM não pôde ser baixado neste ambiente. Se o leiaute for outro, o erro aparece em Status ("CVM — Informe trimestral de FII") e os demais dados seguem normais.
+- **Novos indicadores do FII:** `fii.vacancia` e `fii.alavancagem`, com página em "Como é calculado".
+- **Gordon ajustado na página do fundo:**
+  - taxa base = Tesouro Prefixado de vencimento mais longo (padrão), Tesouro IPCA+ ou Selic, todos com a data da taxa;
+  - 15% de IR descontados da taxa do Tesouro, porque os rendimentos de FII são isentos (opcional);
+  - prêmio de 2% e crescimento de 0% como padrão, ajustáveis com –/+.
+- **Histórico mensal:** valor patrimonial por cota, DY mensal informado e cotistas. Estatística dos retornos mensais da cotação (meses em alta e em queda, melhor e pior mês, 24 meses).
+- **Documentos do FNET:** consulta pública sob demanda, só quando o usuário clica em "Carregar documentos". Mostra apenas metadados e link para o FNET, em linha com o uso parcimonioso registrado em FONTES_DE_DADOS.md.
+- **Ranking de FIIs** (`/fiis/ranking`):
+  - faixas de DY, P/VP, patrimônio, liquidez, vacância e alavancagem;
+  - tipo, segmento e favoritos;
+  - parâmetros do Gordon ajustado;
+  - ordenar pela margem do Gordon, maior DY ou menor P/VP;
+  - exportação .xlsx/.csv com fontes e aviso.
+  - Os filtros ficam guardados no navegador.
+
 ## Perguntas em aberto
 
 > Itens 1 a 11 e 15 respondidos (D-012, D-019, D-020). Os demais seguem abertos.

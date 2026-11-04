@@ -8,7 +8,16 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 
 from app.config import obter_configuracao
-from app.db.modelos import Ativo, CotacaoDiaria, DemonstracaoLinha, Fii, Fonte, LoteIngestao, Provento
+from app.db.modelos import (
+    Ativo,
+    CotacaoDiaria,
+    DemonstracaoLinha,
+    Fii,
+    FiiImovel,
+    Fonte,
+    LoteIngestao,
+    Provento,
+)
 from app.db.sessao import FabricaSessao, motor
 from app.ingestao import (
     b3_proventos,
@@ -18,6 +27,7 @@ from app.ingestao import (
     cvm_companhias,
     cvm_demonstracoes,
     cvm_fii,
+    cvm_fii_trimestral,
     fnet_rendimentos,
     tesouro,
     yahoo,
@@ -62,6 +72,7 @@ def demonstracoes(anos: list[int]) -> None:
 def fiis(anos: list[int]) -> None:
     for ano in anos:
         _executar(f"FII mensal {ano}", cvm_fii.ingerir, ano)
+        _executar(f"FII trimestral {ano}", cvm_fii_trimestral.ingerir, ano)
 
 
 def usa_yahoo() -> bool:
@@ -166,9 +177,13 @@ def completar_carga(forcar: bool = False) -> None:
             sem_cotacoes = forcar or faltam_cotacoes(sessao)
             sem_proventos = forcar or faltam_proventos(sessao)
             sem_ticker_fii = fiis_sem_ticker(sessao)
-        if not (sem_padronizacao or sem_cotacoes or sem_proventos or sem_ticker_fii):
+            sem_imoveis = sessao.scalar(select(func.count()).select_from(FiiImovel)) == 0
+        if not (sem_padronizacao or sem_cotacoes or sem_proventos or sem_ticker_fii or sem_imoveis):
             return
         ano = date.today().year
+        if sem_imoveis and not sem_ticker_fii:  # imóveis e vacância (informe trimestral, Fase 5)
+            for a in (ano - 1, ano):
+                _passo("informe trimestral de FII", _executar, f"FII trimestral {a}", cvm_fii_trimestral.ingerir, a)
         if sem_ticker_fii:  # reprocessa os informes (leitura do ISIN mais tolerante) para criar os tickers
             _passo("informes de FII", fiis, [ano - 1, ano])
         _passo("tickers de FII", _criar_tickers_fii)

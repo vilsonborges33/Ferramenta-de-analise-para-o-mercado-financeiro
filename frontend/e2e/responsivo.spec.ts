@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const PAGINAS = ["/", "/acoes", "/fiis", "/mais-baratas", "/valuations", "/metodologia", "/status", "/entrar"];
+const PAGINAS = ["/", "/acoes", "/fiis", "/fiis/ranking", "/mais-baratas", "/valuations", "/metodologia", "/status", "/entrar"];
 
 for (const caminho of PAGINAS) {
   test(`sem rolagem horizontal da página em ${caminho}`, async ({ page }) => {
@@ -99,6 +99,34 @@ test("valuation: comparativo, premissas editáveis e sensibilidade", async ({ pa
   await expect(page.locator(".text-3xl").first()).not.toHaveText(antes ?? "");
   await page.getByRole("tab", { name: "Modelo de Gordon" }).click();
   await expect(page.getByLabel("Custo do capital próprio")).toBeVisible();
+  const larguras = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
+  expect(larguras[0]).toBeLessThanOrEqual(larguras[1]);
+});
+
+test("FII: Gordon ajustado, composição, imóveis e documentos", async ({ page }) => {
+  await page.goto(`/fiis/${process.env.FII_TESTE ?? "HGLG11"}`);
+  test.skip((await page.locator("h1").count()) === 0, "base sem o FII de teste");
+  await expect(page.locator("#valuation")).toContainText("Gordon ajustado");
+  await expect(page.locator("#valuation")).toContainText("Não constituem recomendação");
+  await page.getByRole("button", { name: "Aumentar Prêmio sobre a taxa" }).click();
+  await expect(page.locator("#valuation")).toContainText("2,5%");
+  for (const id of ["composicao", "endividamento", "imoveis", "historico", "documentos"])
+    await expect(page.locator(`#${id}`)).toBeVisible();
+  const larguras = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
+  expect(larguras[0]).toBeLessThanOrEqual(larguras[1]);
+});
+
+test("ranking de FIIs: filtros e exportação", async ({ page }) => {
+  await page.goto("/fiis/ranking");
+  await expect(page.getByRole("note")).toContainText("Não constituem recomendação");
+  await expect(page.locator("tbody tr").first()).toBeVisible();
+  test.skip((await page.locator("tbody a").count()) === 0, "base sem FIIs com cotação");
+  await page.getByRole("button", { name: "Papel" }).click();
+  await page.getByLabel("P/VP máximo").fill("0,01");
+  await expect(page.locator("tbody")).toContainText("Nenhum fundo passa nos filtros");
+  await page.getByRole("button", { name: "Limpar filtros" }).click();
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("link", { name: ".csv" }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^screening-fiis-.*\.csv$/);
   const larguras = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
   expect(larguras[0]).toBeLessThanOrEqual(larguras[1]);
 });
