@@ -251,6 +251,31 @@ Diagnóstico do usuário em 04/11: nenhuma fonte rodou depois de 13/10, e o work
 
 ---
 
+## Fase 4 — Valuation (04/11/2026)
+
+**D-035 — Valuation por ação, "Meus valuations" e DCF exportável** · aprovada (usuário pediu para seguir à Fase 4)
+A conferência da Fase 3 contra o Investidor 10 ficou pendente: este ambiente não acessa `investidor10.com.br`, `dados.cvm.gov.br` nem `query1.finance.yahoo.com`. Será feita quando o acesso for liberado.
+
+- **Página `/valuation/{ticker}`:** comparativo dos métodos com as premissas padrão (gráfico com a cotação marcada) e uma aba por método com premissas editáveis, recalculadas no backend.
+  - **Preço teto projetivo (Bazin):** lucro projetado × payout ÷ ações ÷ yield mínimo.
+  - **Gordon e dividendos em dois estágios (Damodaran):** a partir dos dividendos líquidos de 12 meses.
+  - **DCF FCFF e FCFE (McKinsey/Damodaran):**
+    - projeção de 5 anos e valor terminal de Gordon;
+    - tabela de sensibilidade de taxa de desconto (±2 p.p.) × crescimento perpétuo (±1 p.p.);
+    - peso do valor terminal.
+  - **Múltiplos do setor:** mediana de P/L, P/VP e EV/EBITDA das outras empresas do mesmo setor da CVM (mínimo de 3 pares). O resultado é a mediana dos preços implícitos.
+- **Premissas padrão** (editáveis e explicadas na tela):
+  - custo do capital próprio = Selic meta + 5%;
+  - custo da dívida = Selic + 2%;
+  - WACC com pesos a valor de mercado e IR de 34%;
+  - crescimento da receita = CAGR de 5 anos limitado a 0–10%;
+  - crescimento perpétuo de 4%;
+  - margem EBIT, D&A e capex dos últimos 12 meses;
+  - capital de giro = 10% do aumento da receita.
+- **Meus valuations** (login): salva método, premissas, narrativa, resultado e um retrato dos insumos, para reproduzir o cálculo mesmo depois de novos dados. Usa a tabela `valuation_salvo`, que já existia (sem mudança de esquema). Lista em `/valuations`; apagar e exportar.
+- **Exportação do DCF para .xlsx com fórmulas abertas:** aba Premissas (células amarelas editáveis) e aba DCF com fórmulas. O teste recalcula a planilha no LibreOffice e confere o valor por ação com o do sistema, para FCFF e FCFE.
+- **Todo resultado** traz o aviso de não recomendação e o link para "Como é calculado".
+
 ## Perguntas em aberto
 
 > Itens 1 a 11 e 15 respondidos (D-012, D-019, D-020). Os demais seguem abertos.

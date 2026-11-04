@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const PAGINAS = ["/", "/acoes", "/fiis", "/mais-baratas", "/metodologia", "/status", "/entrar"];
+const PAGINAS = ["/", "/acoes", "/fiis", "/mais-baratas", "/valuations", "/metodologia", "/status", "/entrar"];
 
 for (const caminho of PAGINAS) {
   test(`sem rolagem horizontal da página em ${caminho}`, async ({ page }) => {
@@ -85,6 +85,20 @@ test("página da ação: seções, valuation ajustável, dividendos e histórico
     await expect(valuation.getByText("23", { exact: true })).toBeVisible();
   }
   await page.locator("#historico").getByRole("tab", { name: "Balanço" }).click();
+  const larguras = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
+  expect(larguras[0]).toBeLessThanOrEqual(larguras[1]);
+});
+
+test("valuation: comparativo, premissas editáveis e sensibilidade", async ({ page }) => {
+  await page.goto(`/valuation/${process.env.TICKER_TESTE ?? "EXMP3"}`);
+  await expect(page.getByRole("note")).toContainText("Não constituem recomendação");
+  test.skip(await page.getByText("Valuation disponível só para ações").isVisible(), "base sem a ação de teste");
+  await expect(page.getByText("Valor por ação: taxa")).toBeVisible();
+  const antes = await page.locator(".text-3xl").first().textContent();
+  await page.getByLabel("WACC").fill("30");
+  await expect(page.locator(".text-3xl").first()).not.toHaveText(antes ?? "");
+  await page.getByRole("tab", { name: "Modelo de Gordon" }).click();
+  await expect(page.getByLabel("Custo do capital próprio")).toBeVisible();
   const larguras = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
   expect(larguras[0]).toBeLessThanOrEqual(larguras[1]);
 });

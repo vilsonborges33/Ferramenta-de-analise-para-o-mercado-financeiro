@@ -112,6 +112,9 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
       {acao && (
         <Secao id="valuation" titulo="Valuation pelos livros">
           <PainelValuation ticker={ativo.ticker} />
+          <Link href={`/valuation/${ativo.ticker}`} className="link inline-block text-sm">
+            Valuation completo: DCF, Gordon, múltiplos do setor e cenários salvos →
+          </Link>
         </Secao>
       )}
 

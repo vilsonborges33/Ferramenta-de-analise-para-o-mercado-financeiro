@@ -19,6 +19,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <Link href="/acoes">Ações</Link>
             <Link href="/fiis">FIIs</Link>
             <Link href="/mais-baratas">Ranking</Link>
+            <Link href="/valuations">Valuation</Link>
             <Link href="/metodologia">Como é calculado</Link>
             <Link href="/status">Status</Link>
             <Link href="/entrar" className="ml-auto">
