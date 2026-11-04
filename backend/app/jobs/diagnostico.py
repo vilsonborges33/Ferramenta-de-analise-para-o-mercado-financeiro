@@ -4,6 +4,8 @@ Imprime, em texto simples para copiar e colar, o que foi carregado, o último re
 um teste ao vivo do Yahoo Finance e o motivo de cada indicador indisponível do ticker escolhido.
 """
 
+from datetime import date
+
 from sqlalchemy import desc, func, select
 
 from app.config import obter_configuracao
@@ -72,6 +74,14 @@ def executar(ticker: str = "PETR4") -> str:
             p(f"{f.codigo}: {lote.status} em {lote.concluido_em or lote.iniciado_em:%d/%m %H:%M} | "
               f"{lote.linhas_gravadas} linhas | {(lote.erro or '').strip()[:300]}")
         p("")
+        from app.jobs.tarefas import ultima_cotacao, ultimo_dia_util
+        p(f"cotações das ações em dia até: {ultima_cotacao(s)} (último dia útil: {ultimo_dia_util(date.today())})")
+        p("últimas rodadas do Yahoo:")
+        for lote in s.scalars(select(LoteIngestao).join(Fonte).where(Fonte.codigo == "YAHOO_FINANCE")
+                              .order_by(desc(LoteIngestao.id)).limit(5)):
+            p(f"  {lote.iniciado_em:%d/%m %H:%M} → {lote.status} | {lote.linhas_gravadas} linhas | "
+              f"{(lote.erro or '').strip()[:200]}")
+        p("")
         ativo = s.scalar(select(Ativo).where(Ativo.ticker == ticker.upper()))
         p(f"--- {ticker.upper()} ---")
         if ativo is None:
@@ -87,6 +97,20 @@ def executar(ticker: str = "PETR4") -> str:
             if empresa and not s.scalar(select(func.count()).select_from(DemonstracaoPadronizada)
                                         .where(DemonstracaoPadronizada.empresa_id == empresa.id)):
                 p("organização dos balanços (teste agora): " + _testar_padronizacao(s, empresa))
+            if empresa:
+                p("resultados por período (R$ mi: receita | EBIT | lucro líquido | PL):")
+                periodos = s.scalars(select(DemonstracaoPadronizada).where(
+                    DemonstracaoPadronizada.empresa_id == empresa.id,
+                    DemonstracaoPadronizada.tipo_periodo.in_(("trimestre", "ttm", "ano")))
+                    .order_by(desc(DemonstracaoPadronizada.data_fim), DemonstracaoPadronizada.tipo_periodo).limit(12))
+                for per in periodos:
+                    c = per.campos
+                    mi = lambda v: "-" if v is None else f"{v / 1e6:,.1f}"  # noqa: E731
+                    base = "consolidado" if per.consolidado else "individual"
+                    p(f"  {per.periodo:<9} {per.tipo_periodo:<9} {base:<11}"
+                      f" v{per.versao_usada} | {mi(c.get('receita_liquida'))} | {mi(c.get('ebit'))} | "
+                      f"{mi(c.get('lucro_liquido_controladores', c.get('lucro_liquido')))} | "
+                      f"{mi(c.get('patrimonio_liquido'))}")
             ultima = s.scalar(select(CotacaoDiaria).where(CotacaoDiaria.ativo_id == ativo.id)
                               .order_by(desc(CotacaoDiaria.data)))
             p(f"última cotação: {f'{ultima.data} R$ {ultima.fechamento}' if ultima else 'nenhuma'}")

@@ -118,6 +118,10 @@ def _consultar(cliente, ticker: str, intervalo: str, tentativas: int = 3, espera
     return resposta
 
 
+BLOCO_GRAVACAO = 25
+MAXIMO_FALHAS_SEGUIDAS = 25
+
+
 def ingerir(sessao, tickers: list[str] | None = None, intervalo: str = "5d", cliente=None,
             pausa: float = 0.4) -> int:
     """Cotações e dividendos de cada ação/unit/FII ativo. Falhas isoladas não param os demais.
@@ -131,6 +135,8 @@ def ingerir(sessao, tickers: list[str] | None = None, intervalo: str = "5d", cli
     proprio = cliente is None
     cliente = cliente or cliente_http()
     total, falhas, sem_dados = 0, [], []
+    seguidas = 0  # falhas consecutivas: muitas seguidas = Yahoo bloqueando (HTTP 429) ou sem internet
+    interrompido = False
     try:
         with lote(sessao, "YAHOO_FINANCE", URL.format(simbolo="*")) as ctx:
             for i, (ativo_id, ticker, classe) in enumerate(ativos):
@@ -140,22 +146,35 @@ def ingerir(sessao, tickers: list[str] | None = None, intervalo: str = "5d", cli
                     resposta = _consultar(cliente, ticker, intervalo)
                     if resposta.status_code == 404:
                         sem_dados.append(ticker)
+                        seguidas = 0
                         continue
                     resposta.raise_for_status()
                     with sessao.begin_nested():
                         total += gravar(ctx, ativo_id, parse(resposta.json(), classe))
+                    seguidas = 0
                 except EsquemaInesperado:
                     sem_dados.append(ticker)  # ticker sem negociação/histórico no Yahoo
+                    seguidas = 0
                 except Exception as erro:
                     falhas.append(f"{ticker}: {erro!r}"[:120])
+                    seguidas += 1
+                    if seguidas >= MAXIMO_FALHAS_SEGUIDAS:
+                        interrompido = True
+                        break
+                if (i + 1) % BLOCO_GRAVACAO == 0:  # grava o que já veio: uma interrupção não perde tudo
+                    ctx.lote.linhas_gravadas = total
+                    sessao.commit()
             ctx.lote.linhas_gravadas = total
             partes = []
+            if interrompido:
+                partes.append(f"interrompido após {MAXIMO_FALHAS_SEGUIDAS} falhas seguidas "
+                              f"({len(ativos) - i - 1} ativo(s) ficaram para a próxima rodada)")
             if sem_dados:
                 partes.append(f"{len(sem_dados)} ticker(s) sem dados no Yahoo (ex.: {', '.join(sem_dados[:8])})")
             if falhas:
                 partes.append(f"{len(falhas)} com falha (ex.: {'; '.join(falhas[:3])})")
             ctx.lote.erro = "; ".join(partes) or None
-            if ativos and len(falhas) == len(ativos):
+            if ativos and total == 0 and falhas and len(falhas) + len(sem_dados) >= min(len(ativos), i + 1):
                 raise RuntimeError("todas as consultas ao Yahoo falharam: " + falhas[0])
     finally:
         if proprio:

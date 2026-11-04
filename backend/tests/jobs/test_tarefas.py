@@ -149,3 +149,19 @@ def test_por_em_dia_busca_so_o_que_esta_atrasado(sessao, monkeypatch):
     # dados em dia: nada a fazer
     chamadas.clear()
     assert tarefas.por_em_dia(date(2026, 10, 21), agora) == [] and chamadas == []
+
+
+def test_ultima_cotacao_e_a_mediana_e_nao_o_maximo(sessao):
+    from datetime import date
+    from decimal import Decimal
+
+    from sqlalchemy import select
+
+    from app.db.modelos import Ativo, CotacaoDiaria
+    carregar_companhias(sessao)  # 3 ações
+    ids = list(sessao.scalars(select(Ativo.id).where(Ativo.classe == "ACAO")))
+    datas = [date(2026, 10, 9), date(2026, 10, 9), date(2026, 11, 3)]  # só uma ação em dia
+    with lote(sessao, "YAHOO_FINANCE") as ctx:
+        for ativo_id, dia in zip(ids, datas, strict=True):
+            sessao.add(CotacaoDiaria(ativo_id=ativo_id, data=dia, fechamento=Decimal(1), **ctx.procedencia(dia)))
+    assert tarefas.ultima_cotacao(sessao) == date(2026, 10, 9)

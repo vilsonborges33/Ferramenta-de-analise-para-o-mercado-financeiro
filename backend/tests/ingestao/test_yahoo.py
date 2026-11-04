@@ -115,3 +115,22 @@ def test_dy_com_yahoo_usa_data_ex_e_ignora_outras_fontes(sessao):
 def test_isin_em_coluna_com_outro_nome():
     assert cvm_fii._isin({"Codigo_ISIN_Classe": "brtrxfctf001"}) == "BRTRXFCTF001"
     assert cvm_fii._isin({"ISIN": "  "}) is None and cvm_fii._isin({"Nome": "BRTRXFCTF001"}) is None
+
+
+def test_para_quando_o_yahoo_bloqueia_e_guarda_o_que_ja_veio(sessao, monkeypatch):
+    monkeypatch.setattr(yahoo.time, "sleep", lambda s: None)
+    sessao.add_all([Ativo(ticker=f"AB{chr(65 + i // 26)}{chr(65 + i % 26)}3", classe="ACAO") for i in range(40)])
+    sessao.commit()
+    pedidos = []
+
+    def responder(request):
+        pedidos.append(request)
+        return httpx.Response(200, json=RESPOSTA) if len(pedidos) <= 3 else httpx.Response(429)
+
+    total = yahoo.ingerir(sessao, cliente=httpx.Client(transport=httpx.MockTransport(responder)), pausa=0)
+    assert total == 9  # 3 ativos × (2 cotações + 1 dividendo)
+    ultimo = sessao.scalars(select(LoteIngestao).order_by(LoteIngestao.id.desc())).first()
+    assert ultimo.status == "concluido" and "interrompido" in ultimo.erro
+    assert sessao.query(CotacaoDiaria).count() == 6
+    consultados = len({str(p.url) for p in pedidos})
+    assert consultados == 3 + yahoo.MAXIMO_FALHAS_SEGUIDAS  # não insiste nos 12 restantes

@@ -230,6 +230,14 @@ A página "Mais baratas" vira **Ranking de ações** (`/screening/acoes`):
   - rentabilidade comparada com índices (fica na Fase 6);
   - acionistas e comunidade (fora do escopo).
 
+**D-033 — Cotações paradas desde 09/10 (relato de 03/11/2026)** · aprovada
+Sintoma: a página do SAPR4 mostrava o fechamento de 09/10/2026 em 03/11. Este ambiente não acessa o Yahoo nem a CVM, então a causa exata depende do diagnóstico no computador do usuário. Correções para as causas prováveis:
+- **"Em dia" pela mediana:** a atualização ao ligar decide se as cotações estão atrasadas pela mediana da última cotação de cada ação. Antes usava a data mais recente entre todas, e uma única ação atualizada escondia as demais paradas.
+- **Cotações antes do complemento:** ao ligar, primeiro vêm as cotações; depois o complemento (informes de FII, tickers sem preço), que pode demorar.
+- **Yahoo grava em blocos de 25 ativos:** uma interrupção (computador desligado, Docker fechado) não perde a rodada inteira.
+- **Yahoo para após 25 falhas seguidas** (bloqueio 429 ou sem internet), registra "interrompido" em Status e deixa o restante para a próxima rodada, em vez de insistir em centenas de consultas.
+- **Diagnóstico ampliado:** mostra até que data as cotações estão em dia, as 5 últimas rodadas do Yahoo e os resultados por período do ticker (trimestres, 12 meses e anos), para conferir números de 12 meses que destoam do anual.
+
 ---
 
 ## Perguntas em aberto

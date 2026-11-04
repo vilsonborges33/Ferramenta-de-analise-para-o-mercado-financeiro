@@ -190,8 +190,12 @@ def completar_carga(forcar: bool = False) -> None:
 
 
 def ultima_cotacao(sessao) -> date | None:
-    return sessao.scalar(select(func.max(CotacaoDiaria.data)).join(Ativo, Ativo.id == CotacaoDiaria.ativo_id)
-                         .where(Ativo.classe == "ACAO"))
+    """Data em que as cotações das ações estão em dia: a mediana da última cotação de cada ação ativa.
+    (O máximo enganava: uma única ação atualizada escondia todas as outras paradas.)"""
+    ultimas = (select(func.max(CotacaoDiaria.data).label("data")).join(Ativo, Ativo.id == CotacaoDiaria.ativo_id)
+               .where(Ativo.classe == "ACAO", Ativo.ativo.is_(True)).group_by(CotacaoDiaria.ativo_id).subquery())
+    datas = sorted(sessao.scalars(select(ultimas.c.data)))
+    return datas[(len(datas) - 1) // 2] if datas else None
 
 
 def ultima_atualizacao(sessao, *codigos: str) -> datetime | None:
@@ -263,13 +267,14 @@ def atualizar_ao_iniciar() -> None:
     with FabricaSessao() as sessao:
         vazio = precisa_carga_inicial(sessao)
     if not vazio:
-        completar_carga()
+        # Primeiro o que muda todo dia (cotações), depois o complemento, que pode ser demorado.
         with trava_exclusiva() as obtida:
             if not obtida:
                 log.warning("já existe uma carga em andamento; atualização da inicialização ignorada")
                 return
             feitos = por_em_dia()
         log.info("atualização da inicialização: %s", ", ".join(feitos) or "dados já estavam em dia")
+        completar_carga()
         return
     carga_inicial_se_vazio()
 
