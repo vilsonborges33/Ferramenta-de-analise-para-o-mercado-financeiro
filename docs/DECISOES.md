@@ -238,6 +238,13 @@ Sintoma: a página do SAPR4 mostrava o fechamento de 09/10/2026 em 03/11. Este a
 - **Yahoo para após 25 falhas seguidas** (bloqueio 429 ou sem internet), registra "interrompido" em Status e deixa o restante para a próxima rodada, em vez de insistir em centenas de consultas.
 - **Diagnóstico ampliado:** mostra até que data as cotações estão em dia, as 5 últimas rodadas do Yahoo e os resultados por período do ticker (trimestres, 12 meses e anos), para conferir números de 12 meses que destoam do anual.
 
+**D-034 — Causa das cotações paradas: fuso da tarefa de inicialização** · 04/11/2026 · aprovada
+Diagnóstico do usuário em 04/11: nenhuma fonte rodou depois de 13/10, e o worker tinha acabado de subir sem executar nada.
+- **Causa:** a tarefa "ao ligar" era agendada com `datetime.now()` sem fuso. O container roda em UTC, e o agendador lê horários sem fuso como horário de Brasília. Resultado: a tarefa ficava para 3 horas depois, e o computador costumava ser desligado antes disso.
+- **As tarefas fixas (19h, 2h–5h) também não rodavam:** o computador não estava ligado nesses horários.
+- **Correção:** horário com fuso (`datetime.now(ZoneInfo("America/Sao_Paulo"))`), com teste que garante a execução imediata.
+- **Lucro de 12 meses do SAPR4 conferido:** o 2º trimestre de 2026 teve prejuízo de R$ 505 mi com EBIT positivo de R$ 365 mi. A queda do patrimônio no trimestre (R$ 12,70 bi → R$ 12,10 bi) confirma que o prejuízo está no balanço da CVM; não é erro de cálculo. Por isso o ROE de 12 meses (3,8%) fica bem abaixo do ROE de 2025 (16,8%).
+
 ---
 
 ## Perguntas em aberto

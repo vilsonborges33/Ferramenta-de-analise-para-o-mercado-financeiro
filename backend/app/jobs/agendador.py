@@ -2,6 +2,7 @@
 
 import logging
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -14,6 +15,10 @@ FUSO = "America/Sao_Paulo"
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     tarefas.preparar()
+    montar().start()
+
+
+def montar() -> BlockingScheduler:
     # Computador suspenso no horário: ao acordar, roda a tarefa perdida uma vez (até 12 h de atraso).
     agendador = BlockingScheduler(timezone=FUSO, job_defaults={"coalesce": True, "misfire_grace_time": 12 * 3600})
     ano = lambda: [date.today().year]  # noqa: E731
@@ -30,8 +35,11 @@ def main() -> None:
     agendador.add_job(tarefas.indicadores, CronTrigger(day_of_week="mon-fri", hour=21, minute=15, timezone=FUSO),
                       id="indicadores_noite")
     # Ao ligar: carga inicial (instalação nova) ou busca do que ficou para trás com o computador desligado.
-    agendador.add_job(tarefas.atualizar_ao_iniciar, next_run_time=datetime.now(), id="atualizar_ao_iniciar")
-    agendador.start()
+    # O horário precisa ter fuso: o container roda em UTC e um horário "ingênuo" seria lido como horário de
+    # Brasília, adiando a tarefa em 3 horas (D-034).
+    agendador.add_job(tarefas.atualizar_ao_iniciar, next_run_time=datetime.now(ZoneInfo(FUSO)),
+                      id="atualizar_ao_iniciar")
+    return agendador
 
 
 if __name__ == "__main__":
