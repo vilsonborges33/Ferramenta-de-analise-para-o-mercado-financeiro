@@ -142,3 +142,10 @@ def impacto_custos(custo_anual: float = Query(..., ge=0, le=0.2), retorno_anual:
 @rotas.get("/status")
 def status(sessao: Session = Depends(obter_sessao)):
     return consultas.status_dados(sessao)
+
+
+@rotas.get("/painel")
+def painel(sessao: Session = Depends(obter_sessao)):
+    """Página inicial: Selic, CDI, IPCA, dólar, Tesouro e maiores variações do último pregão."""
+    from app.servicos import painel as servico
+    return servico.montar(sessao)

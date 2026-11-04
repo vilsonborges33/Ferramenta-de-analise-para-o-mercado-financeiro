@@ -135,6 +135,18 @@ def test_plano_banco_por_descricao():
     assert "ebit" not in c
 
 
+def test_conta_duplicada_zerada_nao_esconde_a_que_tem_valor():
+    """Caso real do BB (ITR 3T25): 3.09.01 entregue zerada e 3.11.01 com o lucro."""
+    fim, ini = date(2023, 12, 31), date(2023, 1, 1)
+    linhas = [
+        linha("DFP", "DRE", "3.09.01", "Atribuído aos Sócios da Empresa Controladora", 0, fim, ini),
+        linha("DFP", "DRE", "3.11.01", "Atribuído aos Sócios da Empresa Controladora", 280, fim, ini),
+    ]
+    p = por_chave(padronizar(linhas, "banco"))[("2023-A", "ano")]
+    assert p.campos["lucro_liquido_controladores"] == 280
+    assert [i["conta"] for i in p.insumos["lucro_liquido_controladores"]] == ["3.11.01"]
+
+
 def test_regra_por_nivel():
     r = Regra("BPP", "x", prefixo="2.", padrao="patrim", nivel=2)
     assert r.casa("2.03", "Patrimônio Líquido")

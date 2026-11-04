@@ -129,6 +129,13 @@ def eua() -> None:
 
 def indicadores(tickers: list[str] | None = None) -> None:
     _executar("recálculo de indicadores", recalcular, tickers)
+    alertas()
+
+
+def alertas() -> None:
+    """Avalia os alertas dos usuários com os indicadores recém-calculados (Fase 8)."""
+    from app.servicos import alertas as servico_alertas
+    _executar("verificação de alertas", servico_alertas.verificar)
 
 
 def precisa_carga_inicial(sessao) -> bool:

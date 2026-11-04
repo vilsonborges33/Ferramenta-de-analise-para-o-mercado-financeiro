@@ -22,15 +22,15 @@ export function CartoesRisco({ ticker }: { ticker: string }) {
   const cdi = dados?.cdi_12m;
   return (
     <>
-      <div className="cartao p-3">
-        <div className="suave text-xs">Volatilidade 12m</div>
-        <div className="mt-1 text-lg font-semibold">
+      <div className="cartao cartao-kpi p-3">
+        <div className="rotulo">Volatilidade 12m</div>
+        <div className="mono mt-1.5 text-xl font-semibold">
           <Numero compacto numero={comoNumero(dados?.volatilidade_12m, "Volatilidade (12 m)", "%", null)} />
         </div>
       </div>
-      <div className="cartao p-3">
-        <div className="suave text-xs">Índice de Sharpe 12m</div>
-        <div className="mt-1 text-lg font-semibold">
+      <div className="cartao cartao-kpi p-3">
+        <div className="rotulo">Índice de Sharpe 12m</div>
+        <div className="mono mt-1.5 text-xl font-semibold">
           <Numero compacto numero={comoNumero(dados?.sharpe_12m, "Índice de Sharpe (12 m)", "x", null)} />
         </div>
         {cdi !== null && cdi !== undefined && (

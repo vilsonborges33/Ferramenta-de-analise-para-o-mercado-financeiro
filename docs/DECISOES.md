@@ -367,6 +367,31 @@ Usa as tabelas `carteira`, `lancamento`, `arquivo_importacao`, `preco_medio_ajus
 - **Carteira:** por enquanto só aceita ativos da B3, porque consolidar reais e dólares exige câmbio. Fica para depois.
 - **Dividendos dos EUA (métrica a confirmar com o usuário):** DY pelo valor **bruto**; o texto avisa que os EUA retêm 30% na fonte para residentes no Brasil. A alternativa é mostrar o DY líquido de 30%, como fazemos com o JCP (15%).
 
+## Comparação com a Ward e Fase 8 (04/11/2026)
+
+**D-039 — Conferência com a Ward e correção de conta duplicada** · aprovada (usuário pediu a comparação)
+- Comparamos 5 ações e 1 FII com a Ward (detalhes em `docs/VALIDACAO_WARD.md`). PETR4, WEGE3 e ITUB4 batem (P/L, ROE, DY, margens, DL/EBITDA, EV).
+- **Erro encontrado e corrigido:** no ITR do 3T25 o Banco do Brasil entregou a conta "Atribuído aos Sócios da Controladora" duas vezes (3.09.01 zerada e 3.11.01 com o valor). A padronização pegava a zerada e o lucro de 12 meses ficava inflado (ROE 9,9% em vez de 6,6%). Agora uma conta zerada não esconde outra com valor (teste novo). Todas as empresas foram reprocessadas.
+- **Diferenças explicadas, sem mudança:** P/EBIT de empresas com ON e PN (usamos a cotação do próprio ticker, D-008; a Ward usa o valor de mercado); ações da VALE3 (usamos capital integralizado − tesouraria do ITR da CVM: 4,07 bi; a Ward usa 4,44 bi); DY de FII logo após o anúncio do rendimento (o Yahoo ainda não trazia o de 30/10). ROIC da PETR4, margem líquida da WEGE3 e alavancagem do MXRF11 diferem e ainda não foram investigados.
+
+**D-040 — Visual de terminal financeiro e artes próprias** · aprovada (pedido do usuário)
+- Tema escuro por padrão (azul-noite, números em fonte tabular/mono, verde e vermelho só para variação), com tema claro no botão do topo (fica salvo no navegador).
+- Menu lateral agrupado, busca rápida de qualquer ativo (atalho "/"), faixa rolante com Selic, CDI, IPCA, dólar, Tesouro e maiores variações do pregão.
+- Painel inicial com indicadores de mercado, maiores altas e baixas (só ativos com liquidez relevante), os 5 primeiros de cada método e atalhos das ferramentas. Endpoint novo `/painel`.
+- Artes em SVG feitas para o projeto: marca "Prumo" (candles + fio de prumo = margem de segurança), ilustração do painel (preço × valor intrínseco), emblemas de Graham, Bazin, Lynch e Greenblatt, monograma por ticker (não usamos logotipos de empresas) e estado vazio. O nome "Prumo" é provisório e muda em uma linha (`NOME_PRODUTO`).
+
+**D-041 — Fase 8: ferramentas, comparador, longo prazo e alertas** · aprovada (usuário pediu para seguir às próximas fases)
+- Calculadoras com fórmulas no módulo de metodologias (`ferramentas.py`, testes à mão): juros compostos (aporte no fim do mês; taxa anual vira mensal equivalente), conversor de taxas (dia útil = 252) com taxa real de Fisher, plano de aposentadoria (renda = patrimônio × DY ÷ 12; aporte necessário pelo PMT).
+- Comparador: até 4 ativos (ações, FIIs, EUA), todas as métricas lado a lado com procedência, melhor valor da linha destacado e cotações em base 100.
+- Longo prazo (Siegel): R$ 100 com proventos reinvestidos na data-ex, contra CDI, dólar e IPCA, nominal e real; CAPE = valor de mercado ÷ lucro real médio de N anos. Como temos DFP desde 2020, o CAPE de 10 anos fica indisponível; o usuário pode escolher 5 a 8 anos, com aviso.
+- Alertas: usa a tabela `alerta` que já existia (sem mudar o esquema). Condições de preço, DY, P/L, P/VP, margem de Graham e preço teto de Bazin; avaliados após cada recálculo; repetição no máximo a cada N dias. E-mail por SMTP só se `SMTP_HOST` estiver no `.env` (biblioteca padrão do Python, sem dependência nova); sem SMTP, o disparo aparece na tela.
+- **Simulador de opções não foi feito**: a especificação pede confirmação nesta fase.
+
+**D-042 — Incidente: banco apagado pelos testes (04/11/2026)** · registro
+- Ao rodar a suíte completa com `docker exec backend pytest`, o `DATABASE_URL` do container apontava para o banco de uso; o `conftest.py` recria o schema (`DROP SCHEMA public CASCADE`) a cada teste e apagou tudo.
+- Perdidos, sem backup: conta de usuário, carteiras, lançamentos, preços médios ajustados, favoritos, valuations salvos, diário e alertas. Os dados de mercado foram recarregados pelo worker (carga inicial automática).
+- Correções: trava no `conftest.py` (só aceita banco cujo nome termine em `_teste`; use `TEST_DATABASE_URL`), banco `analise_teste` criado, `alembic stamp head` depois de conferir que o esquema era idêntico ao das migrações.
+
 ## Perguntas em aberto
 
 > Itens 1 a 11 e 15 respondidos (D-012, D-019, D-020). Os demais seguem abertos.

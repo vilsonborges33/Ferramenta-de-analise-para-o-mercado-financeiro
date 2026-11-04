@@ -1,36 +1,57 @@
 @import "tailwindcss";
 
+/*
+ * Tema "terminal": escuro por padrão, inspirado em mesas de operação (fundo azul-noite, números em
+ * fonte tabular, verde/vermelho só para variação). O tema claro fica em [data-tema="claro"].
+ * Os componentes usam apenas estas variáveis — trocar o tema não exige mexer neles.
+ */
 :root {
-  --fundo: #f7f8fa;
-  --superficie: #ffffff;
-  --texto: #1b1f24;
-  --texto-suave: #5b6470;
-  --borda: #e3e6ea;
-  --destaque: #0f6b5c;
-  --alerta: #9a5b00;
-  --negativo: #b42318;
+  --fundo: #070c16;
+  --fundo-2: #0a111e;
+  --superficie: #0f1726;
+  --superficie-2: #141e30;
+  --texto: #e6ebf2;
+  --texto-suave: #8a97ab;
+  --borda: #1d2940;
+  --borda-forte: #2a3954;
+  --destaque: #2dd4bf;
+  --destaque-2: #38bdf8;
+  --ouro: #f5b544;
+  --positivo: #34d399;
+  --alerta: #f5b544;
+  --negativo: #f87171;
+  --sombra: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  --grade: rgb(148 163 184 / 0.06);
   /* Cor fixa de cada método em todo o site (filtros, colunas, cartões). */
-  --cor-graham: #2463b8;
-  --cor-bazin: #a86400;
-  --cor-lynch: #7a3fc4;
-  --cor-greenblatt: #c2410c;
+  --cor-graham: #60a5fa;
+  --cor-bazin: #f5b544;
+  --cor-lynch: #c084fc;
+  --cor-greenblatt: #fb7c4c;
+  color-scheme: dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --fundo: #111418;
-    --superficie: #191d22;
-    --texto: #e7eaee;
-    --texto-suave: #9aa3ae;
-    --borda: #2a3038;
-    --destaque: #4fc3a9;
-    --alerta: #e0a84a;
-    --negativo: #f07a6a;
-    --cor-graham: #6ea8f0;
-    --cor-bazin: #e0b050;
-    --cor-lynch: #b48cf0;
-    --cor-greenblatt: #f08a5a;
-  }
+[data-tema="claro"] {
+  --fundo: #f3f5f9;
+  --fundo-2: #eaeef4;
+  --superficie: #ffffff;
+  --superficie-2: #f7f9fc;
+  --texto: #0f1726;
+  --texto-suave: #5b6779;
+  --borda: #dfe4ec;
+  --borda-forte: #c9d1de;
+  --destaque: #0d9488;
+  --destaque-2: #0284c7;
+  --ouro: #b7791f;
+  --positivo: #059669;
+  --alerta: #a16207;
+  --negativo: #dc2626;
+  --sombra: 0 1px 2px rgb(15 23 38 / 0.04), 0 8px 24px -16px rgb(15 23 38 / 0.18);
+  --grade: rgb(15 23 38 / 0.045);
+  --cor-graham: #2563eb;
+  --cor-bazin: #b7791f;
+  --cor-lynch: #7c3aed;
+  --cor-greenblatt: #c2410c;
+  color-scheme: light;
 }
 
 /* O Tailwind 4 usa currentColor como cor padrão de borda; aqui as linhas divisórias ficam discretas. */
@@ -40,21 +61,89 @@
   border-color: var(--borda);
 }
 
+html {
+  scrollbar-color: var(--borda-forte) transparent;
+}
+
 body {
   background: var(--fundo);
   color: var(--texto);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: "Inter", "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 14.5px;
   font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Grade milimetrada de fundo — referência a papel de gráfico. */
+.fundo-grade {
+  background-image:
+    linear-gradient(var(--grade) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grade) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.mono,
+.ticker {
+  font-family: "JetBrains Mono", "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  letter-spacing: -0.01em;
+}
+
+h1 {
+  letter-spacing: -0.02em;
 }
 
 .cartao {
   background: var(--superficie);
   border: 1px solid var(--borda);
   border-radius: 0.75rem;
+  box-shadow: var(--sombra);
+}
+
+/* Cartão com borda superior colorida (KPIs). */
+.cartao-kpi {
+  position: relative;
+  overflow: hidden;
+}
+.cartao-kpi::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--destaque), transparent 80%);
+  opacity: 0.8;
+}
+
+.rotulo {
+  color: var(--texto-suave);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .suave {
   color: var(--texto-suave);
+}
+
+.positivo {
+  color: var(--positivo);
+}
+.negativo {
+  color: var(--negativo);
+}
+
+/* Pílula de variação (verde/vermelho). */
+.variacao {
+  border-radius: 0.375rem;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.variacao.positivo {
+  background: color-mix(in srgb, var(--positivo) 14%, transparent);
+}
+.variacao.negativo {
+  background: color-mix(in srgb, var(--negativo) 14%, transparent);
 }
 
 a.link {
@@ -80,21 +169,100 @@ a.link:hover {
   border: 1px solid var(--borda);
   border-radius: 9999px;
   padding: 0.25rem 0.75rem;
+  background: var(--superficie-2);
+  transition: border-color 0.15s, background 0.15s;
+}
+.pilula:hover {
+  border-color: var(--borda-forte);
 }
 .pilula[aria-pressed="true"],
 .pilula[aria-selected="true"] {
-  background: var(--destaque);
+  background: color-mix(in srgb, var(--destaque) 18%, transparent);
   border-color: var(--destaque);
-  color: var(--superficie);
-}
-
-.campo {
-  background: var(--superficie);
-  border: 1px solid var(--borda);
-  border-radius: 0.5rem;
-  padding: 0.25rem 0.5rem;
+  color: var(--destaque);
 }
 .pilula:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.campo {
+  background: var(--fundo-2);
+  border: 1px solid var(--borda);
+  border-radius: 0.5rem;
+  padding: 0.3rem 0.55rem;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.campo:focus {
+  border-color: var(--destaque);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--destaque) 20%, transparent);
+}
+
+.botao {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.9rem;
+  font-weight: 600;
+  background: var(--destaque);
+  color: #04201c;
+}
+.botao:hover {
+  filter: brightness(1.08);
+}
+
+/* Tabelas densas, com cabeçalho em caixa-alta e linhas zebradas no hover. */
+table {
+  border-collapse: collapse;
+}
+thead th {
+  color: var(--texto-suave);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+tbody tr {
+  transition: background 0.1s;
+}
+tbody tr:hover {
+  background: color-mix(in srgb, var(--destaque) 5%, transparent);
+}
+
+/* Faixa de cotações rolando no topo. */
+@keyframes rolar {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.faixa-rolante {
+  animation: rolar 60s linear infinite;
+}
+.faixa-rolante:hover {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .faixa-rolante { animation: none; }
+}
+
+/* Menu lateral */
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 0.5rem;
+  padding: 0.42rem 0.65rem;
+  color: var(--texto-suave);
+  font-size: 0.875rem;
+  transition: background 0.12s, color 0.12s;
+}
+.menu-item:hover {
+  background: var(--superficie-2);
+  color: var(--texto);
+}
+.menu-item[aria-current="page"] {
+  background: color-mix(in srgb, var(--destaque) 12%, transparent);
+  color: var(--destaque);
+  box-shadow: inset 2px 0 0 var(--destaque);
 }

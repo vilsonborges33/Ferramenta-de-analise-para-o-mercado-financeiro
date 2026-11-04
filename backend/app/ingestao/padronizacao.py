@@ -131,7 +131,12 @@ def _aplicar_regras(linhas: list[dict], regras: list[Regra]) -> Bloco:
             if regra.campo in CAMPOS_SOMADOS:
                 bloco.campos[regra.campo] = bloco.campos.get(regra.campo, 0.0) + float(linha["valor"])
             elif regra.campo in bloco.campos:
-                continue
+                # Algumas companhias entregam a mesma conta duas vezes (ex.: BB, ITR 3T25: 3.09.01 zerada e
+                # 3.11.01 com o valor). Uma conta zerada não pode esconder a que tem valor.
+                if bloco.campos[regra.campo] != 0 or float(linha["valor"]) == 0:
+                    continue
+                bloco.campos[regra.campo] = float(linha["valor"])
+                bloco.insumos[regra.campo] = []
             else:
                 bloco.campos[regra.campo] = float(linha["valor"])
             bloco.insumos[regra.campo].append({

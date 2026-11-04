@@ -57,6 +57,13 @@ class Configuracao(BaseSettings):
     diretorio_dados_brutos: Path = Path("dados_brutos")
     agendador_habilitado: bool = True
 
+    # Alertas por e-mail (Fase 8). Sem SMTP_HOST, o alerta só aparece na tela de Alertas.
+    smtp_host: str = ""
+    smtp_porta: int = 587
+    smtp_usuario: str = ""
+    smtp_senha: str = ""
+    smtp_remetente: str = ""
+
 
     @model_validator(mode="after")
     def segredo_preenchido(self) -> "Configuracao":

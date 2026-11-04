@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BotaoFavorito } from "@/componentes/BotaoFavorito";
+import { Monograma } from "@/componentes/Monograma";
 import { CartoesRisco } from "@/componentes/CartoesRisco";
 import { PainelValuation } from "@/componentes/PainelValuation";
 import { SecaoDividendos } from "@/componentes/SecaoDividendos";
@@ -33,8 +34,8 @@ const ORDEM_GRUPOS = ["Valuation", "REIT", "Graham", "Bazin", "Lynch", "Greenbla
 
 function Secao({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
   return (
-    <section id={id} className="cartao scroll-mt-16 space-y-3 p-4">
-      <h2 className="font-semibold">{titulo}</h2>
+    <section id={id} className="cartao scroll-mt-36 space-y-3 p-4 sm:p-5">
+      <h2 className="flex items-center gap-2 font-semibold"><span className="h-4 w-1 rounded-full" style={{ background: "var(--destaque)" }} />{titulo}</h2>
       {children}
     </section>
   );
@@ -76,7 +77,8 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold">{ativo.ticker}</h1>
+              <Monograma ticker={ativo.ticker} classe={ativo.classe} />
+              <h1 className="ticker text-3xl font-bold">{ativo.ticker}</h1>
               <BotaoFavorito ticker={ativo.ticker} />
             </div>
             <div className="suave">{ativo.nome}</div>
@@ -95,7 +97,7 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
           </div>
           {ativo.cotacao && (
             <div className="text-right">
-              <div className="text-2xl font-semibold">{formatarValor(ativo.cotacao.valor, "R$/ação", moeda)}</div>
+              <div className="mono text-3xl font-bold">{formatarValor(ativo.cotacao.valor, "R$/ação", moeda)}</div>
               <div className="text-xs suave">
                 fechamento de {formatarData(ativo.cotacao.data)} · {nomeFonte(ativo.cotacao.fonte)}
               </div>
@@ -104,7 +106,7 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
         </div>
       </div>
 
-      <nav aria-label="Seções" className="sticky top-0 z-10 -mx-4 flex gap-2 overflow-x-auto px-4 py-2 text-sm"
+      <nav aria-label="Seções" className="sticky top-[5.25rem] z-10 -mx-4 flex gap-2 overflow-x-auto px-4 py-2 text-sm"
         style={{ background: "var(--fundo)" }}>
         {secoes.map(([id, nome]) => (
           <a key={id} href={`#${id}`} className="pilula whitespace-nowrap">{nome}</a>
@@ -119,9 +121,9 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {destaques.map((n) => (
-          <div key={n.metrica} className="cartao p-3">
-            <div className="text-xs suave">{n.nome}</div>
-            <div className="mt-1 text-lg font-semibold"><Numero compacto numero={n} /></div>
+          <div key={n.metrica} className="cartao cartao-kpi p-3">
+            <div className="rotulo">{n.nome}</div>
+            <div className="mono mt-1.5 text-xl font-semibold"><Numero compacto numero={n} /></div>
           </div>
         ))}
         <CartoesRisco ticker={ativo.ticker} />

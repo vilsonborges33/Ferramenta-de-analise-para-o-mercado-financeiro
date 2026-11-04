@@ -50,7 +50,8 @@ quando o backend sobe; os dados já carregados são preservados.
 ```bash
 # backend (precisa de um PostgreSQL local; os testes usam o banco analise_teste)
 cd backend && python3.12 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-.venv/bin/pytest --cov=app/metodologias     # testes
+TEST_DATABASE_URL=postgresql+psycopg://analise:analise@localhost:5432/analise_teste \
+  .venv/bin/pytest --cov=app/metodologias     # testes (NUNCA no banco de uso: eles recriam o schema)
 .venv/bin/ruff check app tests              # lint
 
 # frontend
