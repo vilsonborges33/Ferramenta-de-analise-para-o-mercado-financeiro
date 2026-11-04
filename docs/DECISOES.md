@@ -243,6 +243,10 @@ Diagnóstico do usuário em 04/11: nenhuma fonte rodou depois de 13/10, e o work
 - **Causa:** a tarefa "ao ligar" era agendada com `datetime.now()` sem fuso. O container roda em UTC, e o agendador lê horários sem fuso como horário de Brasília. Resultado: a tarefa ficava para 3 horas depois, e o computador costumava ser desligado antes disso.
 - **As tarefas fixas (19h, 2h–5h) também não rodavam:** o computador não estava ligado nesses horários.
 - **Correção:** horário com fuso (`datetime.now(ZoneInfo("America/Sao_Paulo"))`), com teste que garante a execução imediata.
+- **Verificação a cada hora** (pedido do usuário: "que ocorra de modo automático sempre"): com a aplicação ligada, confere de hora em hora se algo ficou para trás e busca só o que faltar.
+  - Cotações: o pregão esperado é o de hoje depois das 19h em dia útil; senão, o dia útil anterior.
+  - Em feriado o pregão esperado nunca chega: o sistema tenta no máximo a cada 3 h.
+  - Cobre computador que dormiu, tarefa das 19h perdida e documento novo da CVM (balanços com mais de 20 h são rebaixados).
 - **Lucro de 12 meses do SAPR4 conferido:** o 2º trimestre de 2026 teve prejuízo de R$ 505 mi com EBIT positivo de R$ 365 mi. A queda do patrimônio no trimestre (R$ 12,70 bi → R$ 12,10 bi) confirma que o prejuízo está no balanço da CVM; não é erro de cálculo. Por isso o ROE de 12 meses (3,8%) fica bem abaixo do ROE de 2025 (16,8%).
 
 ---

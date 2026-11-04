@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 from app.jobs import tarefas
 
@@ -34,6 +35,8 @@ def montar() -> BlockingScheduler:
     agendador.add_job(tarefas.indicadores, CronTrigger(hour=5, minute=0, timezone=FUSO), id="indicadores_madrugada")
     agendador.add_job(tarefas.indicadores, CronTrigger(day_of_week="mon-fri", hour=21, minute=15, timezone=FUSO),
                       id="indicadores_noite")
+    # Rede de segurança: a cada hora confere se algo ficou para trás e busca só o que faltar.
+    agendador.add_job(tarefas.verificar_periodicamente, IntervalTrigger(hours=1, timezone=FUSO), id="verificar")
     # Ao ligar: carga inicial (instalação nova) ou busca do que ficou para trás com o computador desligado.
     # O horário precisa ter fuso: o container roda em UTC e um horário "ingênuo" seria lido como horário de
     # Brasília, adiando a tarefa em 3 horas (D-034).

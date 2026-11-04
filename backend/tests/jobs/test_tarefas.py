@@ -123,7 +123,7 @@ def test_ultimo_dia_util():
 
 
 def test_por_em_dia_busca_so_o_que_esta_atrasado(sessao, monkeypatch):
-    from datetime import UTC, date, datetime
+    from datetime import UTC, date, datetime, timedelta
     from decimal import Decimal
 
     from sqlalchemy import select
@@ -136,6 +136,10 @@ def test_por_em_dia_busca_so_o_que_esta_atrasado(sessao, monkeypatch):
                                  **ctx.procedencia(date(2026, 10, 20))))
     with lote(sessao, "BCB_SGS"), lote(sessao, "CVM_DFP"), lote(sessao, "CVM_FII_MENSAL"):
         pass
+    from app.db.modelos import Fonte, LoteIngestao
+    for registro in sessao.scalars(select(LoteIngestao).join(Fonte, Fonte.id == LoteIngestao.fonte_id)
+                                   .where(Fonte.codigo == "YAHOO_FINANCE")):  # rodada do Yahoo de ontem
+        registro.concluido_em = datetime.now(UTC) - timedelta(days=1)
     sessao.commit()
     chamadas = []
     monkeypatch.setattr(tarefas.yahoo, "ingerir", lambda s, t, intervalo: chamadas.append(("yahoo", intervalo)))
@@ -165,3 +169,34 @@ def test_ultima_cotacao_e_a_mediana_e_nao_o_maximo(sessao):
         for ativo_id, dia in zip(ids, datas, strict=True):
             sessao.add(CotacaoDiaria(ativo_id=ativo_id, data=dia, fechamento=Decimal(1), **ctx.procedencia(dia)))
     assert tarefas.ultima_cotacao(sessao) == date(2026, 10, 9)
+
+
+def test_dia_esperado_considera_o_fechamento_das_19h():
+    from datetime import UTC, date, datetime
+    terca = date(2026, 11, 3)
+    assert tarefas.dia_esperado(terca, datetime(2026, 11, 3, 23, 0, tzinfo=UTC)) == terca  # 20h em Brasília
+    assert tarefas.dia_esperado(terca, datetime(2026, 11, 3, 15, 0, tzinfo=UTC)) == date(2026, 11, 2)  # 12h
+    sabado = date(2026, 11, 7)
+    assert tarefas.dia_esperado(sabado, datetime(2026, 11, 7, 23, 0, tzinfo=UTC)) == date(2026, 11, 6)
+
+
+def test_feriado_nao_refaz_a_busca_a_cada_hora(sessao, monkeypatch):
+    from datetime import UTC, date, datetime, timedelta
+    from decimal import Decimal
+
+    from sqlalchemy import select
+
+    from app.db.modelos import Ativo, CotacaoDiaria
+    carregar_companhias(sessao)
+    ativo = sessao.scalars(select(Ativo).where(Ativo.classe == "ACAO")).first()
+    with lote(sessao, "YAHOO_FINANCE") as ctx:  # rodada de agora há pouco
+        sessao.add(CotacaoDiaria(ativo_id=ativo.id, data=date(2026, 10, 30), fechamento=Decimal(1),
+                                 **ctx.procedencia(date(2026, 10, 30))))
+    with lote(sessao, "BCB_SGS"), lote(sessao, "CVM_DFP"), lote(sessao, "CVM_FII_MENSAL"):
+        pass
+    sessao.commit()
+    chamadas = []
+    monkeypatch.setattr(tarefas.yahoo, "ingerir", lambda *a: chamadas.append(a))
+    agora = datetime.now(UTC)
+    assert tarefas.por_em_dia(date(2026, 11, 3), agora) == [] and chamadas == []
+    assert tarefas.por_em_dia(date(2026, 11, 3), agora + timedelta(hours=4)) != []

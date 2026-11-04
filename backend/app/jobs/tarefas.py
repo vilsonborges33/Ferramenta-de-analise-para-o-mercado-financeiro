@@ -3,6 +3,7 @@
 import logging
 from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 
@@ -211,6 +212,18 @@ def ultimo_dia_util(hoje: date) -> date:
     return dia
 
 
+FUSO = ZoneInfo("America/Sao_Paulo")
+HORA_FECHAMENTO = 19  # depois das 19h (Brasília) o fechamento do dia já está disponível
+
+
+def dia_esperado(hoje: date, agora: datetime | None = None) -> date:
+    """Pregão mais recente que já deveria estar no banco: hoje depois das 19h em dia útil; senão o anterior."""
+    local = agora.astimezone(FUSO) if agora else None
+    if local and local.date() == hoje and hoje.weekday() < 5 and local.hour >= HORA_FECHAMENTO:
+        return hoje
+    return ultimo_dia_util(hoje)
+
+
 def intervalo_yahoo(dias: int) -> str:
     """Menor janela do Yahoo que cobre `dias` corridos sem cotação (com folga para feriados)."""
     for limite, janela in ((4, "5d"), (25, "1mo"), (80, "3mo"), (170, "6mo"), (350, "1y")):
@@ -226,16 +239,18 @@ def _desatualizada(momento: datetime | None, agora: datetime, horas: int = 20) -
 def por_em_dia(hoje: date | None = None, agora: datetime | None = None) -> list[str]:
     """Ao ligar a aplicação: busca o que ficou para trás enquanto o computador estava desligado.
     Só baixa o que está desatualizado; devolve os passos executados."""
-    hoje = hoje or date.today()
     agora = agora or datetime.now(UTC)
+    hoje = hoje or agora.astimezone(FUSO).date()
     with FabricaSessao() as sessao:
         cotacao = ultima_cotacao(sessao)
+        yahoo_em = ultima_atualizacao(sessao, "YAHOO_FINANCE", "B3_COTAHIST")
         macro_em = ultima_atualizacao(sessao, "BCB_SGS", "TESOURO_TD")
         cvm_em = ultima_atualizacao(sessao, "CVM_DFP", "CVM_ITR")
         fii_em = ultima_atualizacao(sessao, "CVM_FII_MENSAL")
         proventos_em = ultima_atualizacao(sessao, "B3_PROVENTOS", "FNET_RENDIMENTOS")
     feitos: list[str] = []
-    if cotacao is None or cotacao < ultimo_dia_util(hoje):
+    # Feriado: o pregão esperado nunca chega; uma tentativa a cada 3 h basta (não refaz a cada hora).
+    if (cotacao is None or cotacao < dia_esperado(hoje, agora)) and _desatualizada(yahoo_em, agora, horas=3):
         dias = (hoje - cotacao).days if cotacao else 365 * ANOS_CARGA_INICIAL
         log.info("cotações paradas desde %s: buscando os dias que faltam", cotacao)
         if usa_yahoo():
@@ -260,6 +275,17 @@ def por_em_dia(hoje: date | None = None, agora: datetime | None = None) -> list[
         _passo("indicadores", indicadores)
         feitos.append("cvm")
     return feitos
+
+
+def verificar_periodicamente() -> None:
+    """A cada hora, com a aplicação ligada: põe em dia o que estiver atrasado (computador que dormiu,
+    tarefa das 19h perdida, CVM com documento novo). Se outra carga estiver rodando, espera a próxima hora."""
+    with trava_exclusiva() as obtida:
+        if not obtida:
+            return
+        feitos = por_em_dia()
+    if feitos:
+        log.info("verificação periódica: %s", ", ".join(feitos))
 
 
 def atualizar_ao_iniciar() -> None:
