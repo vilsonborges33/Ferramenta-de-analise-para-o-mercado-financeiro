@@ -303,6 +303,39 @@ A conferência da Fase 3 contra o Investidor 10 ficou pendente: este ambiente n�
   - exportação .xlsx/.csv com fontes e aviso.
   - Os filtros ficam guardados no navegador.
 
+## Fase 6 — Carteira (04/11/2026)
+
+**D-037 — Consolidador, rentabilidade, otimizador e diário** · aprovada (usuário pediu para seguir à Fase 6)
+Usa as tabelas `carteira`, `lancamento`, `arquivo_importacao`, `preco_medio_ajuste` e `diario_decisao`, que já existiam (sem mudança de esquema). Tudo exige login, e cada usuário vê só o que é seu.
+
+- **Lançamentos:** compra, venda, desdobramento, bonificação e grupamento.
+  - Preço médio com taxas pelo método da Receita: a venda não altera o preço médio, e o resultado realizado = quantidade × (preço − preço médio) − taxas.
+  - Lançamentos que deixariam uma venda sem posição são recusados, inclusive ao apagar uma compra.
+  - O preço médio pode ser informado à mão (posições antigas sem histórico).
+- **Importação da Área do Investidor B3** (.xlsx exportado pelo usuário; a API da B3 exige parceria):
+  - extrato de **Negociação**: compras e vendas;
+  - extrato de **Movimentação**: liquidações, desdobro, bonificação e grupamento;
+  - mercado fracionário (PETR4F → PETR4);
+  - linhas repetidas são ignoradas, então reimportar não duplica;
+  - proventos do extrato são ignorados, porque vêm da fonte de mercado.
+  - O arquivo vai no corpo da requisição, sem `python-multipart` (sem dependência nova).
+- **Proventos recebidos:** quantidade detida na data-com × valor líquido (JCP com 15% de IR), creditados na data de pagamento (ou data-ex no Yahoo). Yield on cost = proventos por cota de 12 meses ÷ preço médio.
+- **Rentabilidade pelo método das cotas** (time-weighted): o retorno de cada dia desconta aportes e resgates e soma os proventos creditados. Comparada com:
+  - CDI e IPCA (Banco Central);
+  - **Ibovespa e IFIX**, nova coleta no Yahoo (`^BVSP`, `IFIX.SA`) gravada como série.
+  - Se um índice estiver indisponível, os outros seguem normais.
+  - Períodos: 1 mês, no ano, 12 meses e desde o início.
+- **Otimizador** (Lo & Foerster e Dalio), com retornos diários de 1 a 5 anos:
+  - pesos atuais × mínima variância × máximo Sharpe (taxa livre de risco = CDI de 12 meses) × paridade de risco;
+  - fronteira eficiente;
+  - matriz de correlação;
+  - contribuição de cada ativo para o risco;
+  - número efetivo de ativos.
+  - Aviso fixo: pesos históricos, ferramenta de estudo, não é recomendação.
+- **Diário de decisões:** decisão, tese, premissas e data de revisão. Registros com a revisão vencida aparecem como "revisão pendente"; depois o usuário registra a revisão e o resultado observado.
+- **Menu:** mostra o e-mail da conta e "Sair" quando há login.
+- **Fica para depois:** compartilhar a carteira por link (`token_compartilhamento` já existe na tabela).
+
 ## Perguntas em aberto
 
 > Itens 1 a 11 e 15 respondidos (D-012, D-019, D-020). Os demais seguem abertos.

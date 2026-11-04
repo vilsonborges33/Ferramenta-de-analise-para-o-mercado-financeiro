@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Conta } from "@/componentes/Conta";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,11 +22,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <Link href="/mais-baratas">Ranking ações</Link>
             <Link href="/fiis/ranking">Ranking FIIs</Link>
             <Link href="/valuations">Valuation</Link>
+            <Link href="/carteira">Carteira</Link>
+            <Link href="/diario">Diário</Link>
             <Link href="/metodologia">Como é calculado</Link>
             <Link href="/status">Status</Link>
-            <Link href="/entrar" className="ml-auto">
-              Entrar
-            </Link>
+            <Conta />
           </nav>
         </header>
         <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>

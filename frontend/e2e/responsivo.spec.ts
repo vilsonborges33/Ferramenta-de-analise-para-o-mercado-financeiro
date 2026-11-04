@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const PAGINAS = ["/", "/acoes", "/fiis", "/fiis/ranking", "/mais-baratas", "/valuations", "/metodologia", "/status", "/entrar"];
+const PAGINAS = ["/", "/acoes", "/fiis", "/fiis/ranking", "/mais-baratas", "/valuations", "/carteira", "/diario", "/metodologia", "/status", "/entrar"];
 
 for (const caminho of PAGINAS) {
   test(`sem rolagem horizontal da página em ${caminho}`, async ({ page }) => {
@@ -129,4 +129,32 @@ test("ranking de FIIs: filtros e exportação", async ({ page }) => {
   expect(download.suggestedFilename()).toMatch(/^screening-fiis-.*\.csv$/);
   const larguras = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
   expect(larguras[0]).toBeLessThanOrEqual(larguras[1]);
+});
+
+test("carteira: criar, lançar, ver posições, rentabilidade, otimizador e diário", async ({ page }) => {
+  await page.goto("/carteira");
+  const email = `cart${Date.now()}${Math.floor(Math.random() * 1000)}@exemplo.com`;
+  expect((await page.request.post("/api/auth/registrar", { data: { email, senha: "senha-forte-123" } })).ok()).toBeTruthy();
+  const criada = await page.request.post("/api/carteiras", { data: { nome: "Teste" } });
+  const id = (await criada.json()).id;
+  for (const [ticker, qtd, preco] of [["EXMP3", 100, 10], ["EXMP4", 50, 12]] as const) {
+    const r = await page.request.post(`/api/carteiras/${id}/lancamentos`,
+      { data: { ticker, tipo: "COMPRA", data: "2025-01-02", quantidade: qtd, preco } });
+    test.skip(!r.ok(), "base sem as ações de teste");
+  }
+  await page.reload();
+  await expect(page.locator("tbody")).toContainText("EXMP3");
+  await page.getByRole("tab", { name: "Lançamentos" }).click();
+  await expect(page.getByText("Importar extrato da B3")).toBeVisible();
+  await page.getByRole("tab", { name: "Rentabilidade" }).click();
+  await expect(page.getByText("Desde o início")).toBeVisible();
+  await page.getByRole("tab", { name: "Otimizador" }).click();
+  await expect(page.getByText("não constitui recomendação", { exact: false }).first()).toBeVisible();
+  const larguras = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
+  expect(larguras[0]).toBeLessThanOrEqual(larguras[1]);
+  await page.goto("/diario");
+  await page.getByLabel("Decisão").fill("Comprar EXMP3");
+  await page.getByLabel("Tese").fill("Desconto sobre o valor de Graham.");
+  await page.getByRole("button", { name: "Registrar decisão" }).click();
+  await expect(page.locator("article")).toContainText("Comprar EXMP3");
 });

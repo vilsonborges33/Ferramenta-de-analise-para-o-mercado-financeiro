@@ -17,6 +17,7 @@ from app.db.modelos import (
     Fonte,
     LoteIngestao,
     Provento,
+    SerieEconomica,
 )
 from app.db.sessao import FabricaSessao, motor
 from app.ingestao import (
@@ -90,7 +91,12 @@ def cotacoes_historicas(anos: list[int], somente_acompanhados: bool = False) -> 
         _executar(f"COTAHIST {ano}", cotahist.ingerir_ano, ano, tickers)
 
 
+def indices(intervalo: str = "5d") -> None:
+    _executar(f"índices Ibovespa e IFIX ({intervalo})", yahoo.ingerir_indices, intervalo)
+
+
 def cotacoes_do_dia(dia: date | None = None) -> None:
+    indices()
     if usa_yahoo():
         _executar("Yahoo Finance (últimos dias)", yahoo.ingerir, None, "5d")
         return
@@ -178,9 +184,13 @@ def completar_carga(forcar: bool = False) -> None:
             sem_proventos = forcar or faltam_proventos(sessao)
             sem_ticker_fii = fiis_sem_ticker(sessao)
             sem_imoveis = sessao.scalar(select(func.count()).select_from(FiiImovel)) == 0
-        if not (sem_padronizacao or sem_cotacoes or sem_proventos or sem_ticker_fii or sem_imoveis):
+            sem_indices = not sessao.scalar(select(func.count()).select_from(SerieEconomica)
+                                            .where(SerieEconomica.codigo == "IBOV"))
+        if not (sem_padronizacao or sem_cotacoes or sem_proventos or sem_ticker_fii or sem_imoveis or sem_indices):
             return
         ano = date.today().year
+        if sem_indices:  # Ibovespa e IFIX para comparar a rentabilidade da carteira (Fase 6)
+            _passo("índices", indices, f"{ANOS_CARGA_INICIAL + 1}y")
         if sem_imoveis and not sem_ticker_fii:  # imóveis e vacância (informe trimestral, Fase 5)
             for a in (ano - 1, ano):
                 _passo("informe trimestral de FII", _executar, f"FII trimestral {a}", cvm_fii_trimestral.ingerir, a)
@@ -268,6 +278,7 @@ def por_em_dia(hoje: date | None = None, agora: datetime | None = None) -> list[
     if (cotacao is None or cotacao < dia_esperado(hoje, agora)) and _desatualizada(yahoo_em, agora, horas=3):
         dias = (hoje - cotacao).days if cotacao else 365 * ANOS_CARGA_INICIAL
         log.info("cotações paradas desde %s: buscando os dias que faltam", cotacao)
+        _passo("índices", indices, intervalo_yahoo(dias))
         if usa_yahoo():
             _passo("cotações atrasadas", _executar, "Yahoo Finance (atrasadas)", yahoo.ingerir, None,
                    intervalo_yahoo(dias))

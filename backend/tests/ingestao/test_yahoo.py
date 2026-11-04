@@ -134,3 +134,21 @@ def test_para_quando_o_yahoo_bloqueia_e_guarda_o_que_ja_veio(sessao, monkeypatch
     assert sessao.query(CotacaoDiaria).count() == 6
     consultados = len({str(p.url) for p in pedidos})
     assert consultados == 3 + yahoo.MAXIMO_FALHAS_SEGUIDAS  # não insiste nos 12 restantes
+
+
+def test_indices_ibovespa_e_ifix_viram_series(sessao):
+    from app.db.modelos import SerieEconomica
+
+    def responder(request):
+        if "IFIX" in str(request.url):
+            return httpx.Response(404, json={"chart": {"result": None, "error": {"code": "Not Found"}}})
+        assert "%5EBVSP" in str(request.url) or "^BVSP" in str(request.url)
+        return httpx.Response(200, json=RESPOSTA)
+
+    r = yahoo.ingerir_indices(sessao, "5d", cliente=httpx.Client(transport=httpx.MockTransport(responder)))
+    assert r["IBOV"] == 2 and "falhou" in r["IFIX"]  # um índice indisponível não impede o outro
+    serie = sessao.scalars(select(SerieEconomica).where(SerieEconomica.codigo == "IBOV")
+                           .order_by(SerieEconomica.data)).all()
+    assert [float(s.valor) for s in serie] == [10.4, 10.5]
+    assert yahoo.simbolo("^BVSP") == "^BVSP" and yahoo.simbolo("IFIX.SA") == "IFIX.SA"
+    assert yahoo.simbolo("petr4") == "PETR4.SA"

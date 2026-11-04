@@ -31,7 +31,9 @@ CABECALHOS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebK
 
 
 def simbolo(ticker: str) -> str:
-    return f"{ticker.upper()}.SA"
+    """Ações e FIIs levam o sufixo .SA; índices (^BVSP) e símbolos já completos ficam como estão."""
+    t = ticker.upper()
+    return t if t.startswith("^") or "." in t else f"{t}.SA"
 
 
 def _data_local(ts: int, deslocamento: int) -> date:
@@ -181,3 +183,40 @@ def ingerir(sessao, tickers: list[str] | None = None, intervalo: str = "5d", cli
             cliente.close()
     log.info("Yahoo: %s linhas; %s sem dados; %s falhas", total, len(sem_dados), len(falhas))
     return total
+
+
+# Índices de referência para a rentabilidade da carteira (Fase 6): símbolo no Yahoo → código da série.
+INDICES = {"^BVSP": "IBOV", "IFIX.SA": "IFIX"}
+
+
+def ingerir_indices(sessao, intervalo: str = "5d", cliente=None) -> dict[str, int | str]:
+    """Fechamentos diários do Ibovespa e do IFIX, gravados como séries (`serie_economica`)."""
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    from app.db.modelos import SerieEconomica
+
+    proprio = cliente is None
+    cliente = cliente or cliente_http()
+    resultado: dict[str, int | str] = {}
+    try:
+        for simbolo_yahoo, codigo in INDICES.items():
+            try:
+                with lote(sessao, "YAHOO_FINANCE", URL.format(simbolo=simbolo_yahoo)) as ctx:
+                    resposta = _consultar(cliente, simbolo_yahoo, intervalo)
+                    resposta.raise_for_status()
+                    cotacoes = parse(resposta.json())["cotacoes"]
+                    for c in cotacoes:
+                        valores = {"codigo": codigo, "data": c["data"], "valor": c["fechamento"],
+                                   **ctx.procedencia(c["data"])}
+                        stmt = pg_insert(SerieEconomica).values(**valores)
+                        sessao.execute(stmt.on_conflict_do_update(
+                            index_elements=["codigo", "data"],
+                            set_={k: stmt.excluded[k] for k in valores if k not in ("codigo", "data")}))
+                    ctx.lote.linhas_gravadas = len(cotacoes)
+                    resultado[codigo] = len(cotacoes)
+            except Exception as erro:  # um índice indisponível não impede o outro
+                resultado[codigo] = f"falhou: {erro!r}"[:200]
+    finally:
+        if proprio:
+            cliente.close()
+    return resultado
