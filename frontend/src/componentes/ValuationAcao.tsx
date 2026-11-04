@@ -1,5 +1,6 @@
 "use client";
 
+import { MoedaProvider, useMoeda } from "@/lib/moeda";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Grafico, reais } from "@/componentes/Grafico";
@@ -24,6 +25,7 @@ const textos = (campos: Campo[], valores: Record<string, unknown>) =>
   Object.fromEntries(campos.map((c) => [c.chave, paraTela(valores[c.chave], c.tipo)]));
 
 function Projecao({ linhas, fcfe }: { linhas: Record<string, number>[]; fcfe: boolean }) {
+  const { fv, fm, simbolo } = useMoeda();
   const rotulos: [string, string][] = [["receita", "Receita"], ["ebit", "EBIT"], ["nopat", "NOPAT"],
     ["depreciacao", "D&A"], ["capex", "Capex"], ["variacao_capital_giro", "Variação do capital de giro"],
     ["fcff", "FCFF"], ...(fcfe ? [["fluxo", "FCFE"] as [string, string]] : [])];
@@ -36,7 +38,7 @@ function Projecao({ linhas, fcfe }: { linhas: Record<string, number>[]; fcfe: bo
           {rotulos.map(([chave, nome]) => (
             <tr key={chave} className="border-t text-right">
               <td className="whitespace-nowrap px-2 py-1 text-left">{nome}</td>
-              {linhas.map((l) => <td key={l.ano} className="whitespace-nowrap px-2 py-1">{formatarMoeda(l[chave])}</td>)}
+              {linhas.map((l) => <td key={l.ano} className="whitespace-nowrap px-2 py-1">{fm(l[chave])}</td>)}
             </tr>
           ))}
         </tbody>
@@ -47,21 +49,22 @@ function Projecao({ linhas, fcfe }: { linhas: Record<string, number>[]; fcfe: bo
 
 function Sensibilidade({ s, preco }: { s: { taxas: number[]; crescimentos: number[]; valores: (number | null)[][] };
   preco: number | null }) {
+  const { fv, fm, simbolo } = useMoeda();
   return (
     <div className="overflow-x-auto">
       <p className="suave mb-1 text-xs">Valor por ação: taxa de desconto (linhas) × crescimento perpétuo (colunas).</p>
       <table className="text-sm">
         <thead className="suave"><tr className="text-right"><th className="px-2 py-1" />
-          {s.crescimentos.map((g) => <th key={g} className="px-2 py-1">g {formatarValor(g, "%")}</th>)}</tr></thead>
+          {s.crescimentos.map((g) => <th key={g} className="px-2 py-1">g {fv(g, "%")}</th>)}</tr></thead>
         <tbody>
           {s.taxas.map((t, i) => (
             <tr key={t} className="border-t text-right">
-              <th className="suave px-2 py-1">r {formatarValor(t, "%")}</th>
+              <th className="suave px-2 py-1">r {fv(t, "%")}</th>
               {s.valores[i].map((v, j) => (
                 <td key={j} className="px-2 py-1"
                   style={{ fontWeight: i === 2 && j === 2 ? 700 : undefined,
                     color: v === null || preco === null ? undefined : v >= preco ? "var(--destaque)" : "var(--negativo)" }}>
-                  {formatarValor(v, "R$/ação")}
+                  {fv(v, "R$/ação")}
                 </td>
               ))}
             </tr>
@@ -161,13 +164,16 @@ export function ValuationAcao({ ticker }: { ticker: string }) {
     carregarSalvos();
   };
 
+  const moeda = (inicio?.insumos.moeda as string | undefined) ?? "BRL";
+  const fv = (v: number | null, unidade: string) => formatarValor(v, unidade, moeda);
+  const simbolo = moeda === "USD" ? "US$" : "R$";
   const preco = inicio ? (inicio.insumos.preco as number | null) : null;
   const grafico = useMemo(() => {
     const itens = (inicio?.comparativo ?? []).filter((c) => c.valor_por_acao !== null);
     return {
       grid: { left: 150, right: 24, top: 8, bottom: 24 },
-      tooltip: { trigger: "axis", valueFormatter: reais },
-      xAxis: { type: "value", axisLabel: { formatter: (v: number) => `R$ ${v.toLocaleString("pt-BR")}` } },
+      tooltip: { trigger: "axis", valueFormatter: (v: unknown) => fv(Number(v), "R$/ação") },
+      xAxis: { type: "value", axisLabel: { formatter: (v: number) => `${simbolo} ${v.toLocaleString("pt-BR")}` } },
       yAxis: { type: "category", data: itens.map((c) => c.nome), inverse: true },
       series: [{ type: "bar", data: itens.map((c) => c.valor_por_acao), itemStyle: { color: "#2463b8" },
         markLine: preco ? { symbol: "none", label: { formatter: "Cotação" }, data: [{ xAxis: preco }] } : undefined }],
@@ -180,15 +186,16 @@ export function ValuationAcao({ ticker }: { ticker: string }) {
   const detalhes = resultado?.detalhes ?? {};
 
   return (
+    <MoedaProvider moeda={moeda}>
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="suave text-xs"><Link href={`/acoes/${ticker}`} className="hover:underline">{ticker}</Link> › Valuation</div>
+          <div className="suave text-xs"><Link href={`/${moeda === "USD" ? "eua" : "acoes"}/${ticker}`} className="hover:underline">{ticker}</Link> › Valuation</div>
           <h1 className="text-2xl font-semibold">Valuation de {ticker}</h1>
           <div className="suave text-sm">{ins.nome}</div>
         </div>
         <div className="text-right text-sm">
-          <div className="text-2xl font-semibold">{formatarValor(preco, "R$/ação")}</div>
+          <div className="text-2xl font-semibold">{fv(preco, "R$/ação")}</div>
           <div className="suave text-xs">fechamento de {formatarData(ins.data_preco as string)}</div>
         </div>
       </div>
@@ -204,9 +211,9 @@ export function ValuationAcao({ ticker }: { ticker: string }) {
               {inicio.comparativo.map((c) => (
                 <tr key={c.metodo} className="border-t text-right">
                   <td className="py-1 text-left"><button type="button" className="link" onClick={() => escolher(c.metodo)}>{c.nome}</button></td>
-                  <td title={c.motivo_indisponivel ?? ""}>{c.valor_por_acao === null ? <span className="suave">—</span> : formatarValor(c.valor_por_acao, "R$/ação")}</td>
+                  <td title={c.motivo_indisponivel ?? ""}>{c.valor_por_acao === null ? <span className="suave">—</span> : fv(c.valor_por_acao, "R$/ação")}</td>
                   <td style={{ color: c.margem_seguranca === null ? undefined : c.margem_seguranca >= 0 ? "var(--destaque)" : "var(--negativo)" }}>
-                    {formatarValor(c.margem_seguranca, "%")}
+                    {fv(c.margem_seguranca, "%")}
                   </td>
                 </tr>
               ))}
@@ -214,8 +221,8 @@ export function ValuationAcao({ ticker }: { ticker: string }) {
           </table>
         </div>
         <p className="suave text-xs">
-          Base contábil: {ins.periodo ?? "—"} · Selic {formatarValor(ins.selic as number | null, "%")} ({formatarData(ins.data_selic as string)})
-          · {formatarValor(ins.acoes as number | null, "un")} ações. Passe o mouse sobre “—” para ver o motivo.
+          Base contábil: {ins.periodo ?? "—"} · Selic {fv(ins.selic as number | null, "%")} ({formatarData(ins.data_selic as string)})
+          · {fv(ins.acoes as number | null, "un")} ações. Passe o mouse sobre “—” para ver o motivo.
         </p>
       </section>
 
@@ -234,7 +241,7 @@ export function ValuationAcao({ ticker }: { ticker: string }) {
           <div className="space-y-2 text-sm">
             {(CAMPOS[metodo] ?? []).map((c) => (
               <label key={c.chave} className="block">
-                <span className="suave text-xs">{c.rotulo}{c.tipo === "pct" || c.tipo === "lista_pct" ? " (%)" : c.tipo === "reais" ? " (R$)" : ""}</span>
+                <span className="suave text-xs">{c.rotulo}{c.tipo === "pct" || c.tipo === "lista_pct" ? " (%)" : c.tipo === "reais" ? ` (${simbolo})` : ""}</span>
                 <input className="campo mt-0.5 w-full text-right" inputMode="decimal" aria-label={c.rotulo}
                   value={campos[c.chave] ?? ""} onChange={(e) => setCampos({ ...campos, [c.chave]: e.target.value })} />
                 {c.tipo === "lista_pct" && <span className="suave text-xs">Um valor por ano, separados por “;”.</span>}
@@ -254,16 +261,16 @@ export function ValuationAcao({ ticker }: { ticker: string }) {
             <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
               <div>
                 <div className="suave text-xs">Valor por ação</div>
-                <div className="text-3xl font-semibold">{formatarValor(resultado?.valor_por_acao ?? null, "R$/ação")}</div>
+                <div className="text-3xl font-semibold">{fv(resultado?.valor_por_acao ?? null, "R$/ação")}</div>
               </div>
               <div>
                 <div className="suave text-xs">Margem de segurança</div>
                 <div className="text-xl" style={{ color: (resultado?.margem_seguranca ?? 0) >= 0 ? "var(--destaque)" : "var(--negativo)" }}>
-                  {formatarValor(resultado?.margem_seguranca ?? null, "%")}
+                  {fv(resultado?.margem_seguranca ?? null, "%")}
                 </div>
               </div>
               {typeof detalhes.peso_terminal === "number" && (
-                <div><div className="suave text-xs">Peso do valor terminal</div><div>{formatarValor(detalhes.peso_terminal, "%")}</div></div>
+                <div><div className="suave text-xs">Peso do valor terminal</div><div>{fv(detalhes.peso_terminal, "%")}</div></div>
               )}
             </div>
             {resultado?.motivo_indisponivel && <p style={{ color: "var(--alerta)" }}>{resultado.motivo_indisponivel}</p>}
@@ -280,9 +287,9 @@ export function ValuationAcao({ ticker }: { ticker: string }) {
                 <tbody>
                   {Object.entries(detalhes.por_multiplo as Record<string, { valor: number | null; mediana_setor: number | null; pares: number | null; motivo_indisponivel: string | null }>).map(([nome, m]) => (
                     <tr key={nome} className="border-t text-right">
-                      <td className="px-2 text-left">{nome}</td><td className="px-2">{formatarValor(m.mediana_setor, "x")}</td>
+                      <td className="px-2 text-left">{nome}</td><td className="px-2">{fv(m.mediana_setor, "x")}</td>
                       <td className="px-2">{m.pares ?? "—"}</td>
-                      <td className="px-2" title={m.motivo_indisponivel ?? ""}>{formatarValor(m.valor, "R$/ação")}</td>
+                      <td className="px-2" title={m.motivo_indisponivel ?? ""}>{fv(m.valor, "R$/ação")}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -300,7 +307,7 @@ export function ValuationAcao({ ticker }: { ticker: string }) {
             <div key={v.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t py-2 text-sm">
               <button type="button" className="link font-medium" onClick={() => escolher(v.metodo, v.premissas)}>{v.nome}</button>
               <span className="suave">{v.nome_metodo}</span>
-              <span>{formatarValor(v.resultado.valor_por_acao, "R$/ação")}</span>
+              <span>{fv(v.resultado.valor_por_acao, "R$/ação")}</span>
               <span className="suave text-xs">salvo em {formatarData(v.atualizado_em)}</span>
               {v.narrativa && <span className="suave w-full text-xs">“{v.narrativa}”</span>}
               <span className="ml-auto flex gap-2">
@@ -312,5 +319,6 @@ export function ValuationAcao({ ticker }: { ticker: string }) {
         </section>
       )}
     </div>
+    </MoedaProvider>
   );
 }

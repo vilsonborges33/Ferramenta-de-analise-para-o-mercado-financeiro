@@ -336,6 +336,37 @@ Usa as tabelas `carteira`, `lancamento`, `arquivo_importacao`, `preco_medio_ajus
 - **Menu:** mostra o e-mail da conta e "Sair" quando há login.
 - **Fica para depois:** compartilhar a carteira por link (`token_compartilhamento` já existe na tabela).
 
+## Fase 7 — Mercado dos EUA (04/11/2026)
+
+**D-038 — Ações, REITs e ETFs dos EUA com as mesmas metodologias** · aprovada (usuário pediu para seguir à Fase 7)
+- **Sem mudança de esquema:** usa `empresa.cik/pais` e `ativo.classe/mercado/moeda`.
+  - Classes novas: `STOCK` (ações), `REIT` e `ETF`, com `mercado = "US"` e `moeda = "USD"`.
+  - O que filtra `classe == "ACAO"` continua sendo só B3: rankings, buscas e indicadores não misturam reais com dólares.
+- **Balanços: SEC EDGAR (XBRL, `companyfacts`).**
+  - Os conceitos US-GAAP são levados aos mesmos campos padronizados da CVM, por isso P/L, ROE, Graham, Bazin, Lynch, Greenblatt, DCF etc. funcionam sem mudança.
+  - Anual = fatos de ~12 meses do 10-K (o último arquivado vence, para pegar reapresentações).
+  - 12 meses = último anual + acumulado do ano − acumulado do mesmo período do ano anterior.
+  - Ações em circulação = capa do último relatório (soma das classes); sem a capa, média diluída.
+  - Setor e tipo (REIT, banco, seguradora) pelo código SIC.
+  - A SEC exige um contato no User-Agent: sem e-mail real em `CONTATO_USER_AGENT`, a ingestão para com aviso. **O e-mail não foi preenchido pelo sistema.**
+- **Lista acompanhada:** `TICKERS_EUA` e `ETFS_EUA` no `.env`; vazias = lista padrão de 39 empresas/REITs grandes e 8 ETFs. Não baixamos as ~7 mil empresas da SEC, para manter a carga leve num computador pessoal.
+- **Cotações e dividendos: Yahoo Finance** (mesma fonte da B3, sem custo, D-027). Na primeira vez, 7 anos de histórico.
+- **REITs (Damodaran; definição de FFO da NAREIT):**
+  - FFO = lucro + D&A − ganho na venda de imóveis;
+  - AFFO simplificado = FFO − investimentos de manutenção (`PaymentsForCapitalImprovements`; indisponível sem esse dado);
+  - também FFO por ação, P/FFO e dividendos ÷ FFO.
+  - Limitação registrada: D&A total, sem impairment.
+- **ETFs:** cotação, dividendos, liquidez e risco. **Custos de Bogle:** o usuário informa a taxa de administração (não há fonte oficial gratuita integrada), e o sistema mostra quanto ela consome do patrimônio final e compara com um fundo de 0,03%.
+- **Valuation em dólar:**
+  - taxa livre de risco = Treasury de 10 anos (nova fonte `US_TREASURY`);
+  - crescimento perpétuo de 2,5%;
+  - IR de 21%;
+  - múltiplos do setor só entre pares dos EUA.
+- **Ranking:** seletor Brasil (B3) / EUA (US$) na mesma página; exportação com "US$" e fontes da SEC.
+- **Moeda na tela:** valores dos EUA aparecem em US$ (contexto de moeda nos componentes).
+- **Carteira:** por enquanto só aceita ativos da B3, porque consolidar reais e dólares exige câmbio. Fica para depois.
+- **Dividendos dos EUA (métrica a confirmar com o usuário):** DY pelo valor **bruto**; o texto avisa que os EUA retêm 30% na fonte para residentes no Brasil. A alternativa é mostrar o DY líquido de 30%, como fazemos com o JCP (15%).
+
 ## Perguntas em aberto
 
 > Itens 1 a 11 e 15 respondidos (D-012, D-019, D-020). Os demais seguem abertos.

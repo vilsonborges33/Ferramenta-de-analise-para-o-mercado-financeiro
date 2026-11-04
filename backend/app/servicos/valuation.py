@@ -35,6 +35,12 @@ METRICA_REGISTRO = {
 PREMIO_RISCO_PADRAO = 0.05  # prêmio de risco de ações sobre a Selic (premissa editável)
 SPREAD_DIVIDA_PADRAO = 0.02  # custo da dívida = Selic + spread (premissa editável)
 CRESCIMENTO_PERPETUO_PADRAO = 0.04  # ≈ inflação de longo prazo (crescimento real ~0)
+# Ativos em dólar (Fase 7): Treasury de 10 anos como taxa livre de risco, inflação-alvo do Fed + 0,5% real e
+# alíquota federal de IR das empresas dos EUA.
+POR_MOEDA = {
+    "BRL": {"serie": "SELIC_META", "nome_taxa": "Selic", "crescimento": CRESCIMENTO_PERPETUO_PADRAO, "aliquota": 0.34},
+    "USD": {"serie": "UST10Y", "nome_taxa": "Treasury 10 anos", "crescimento": 0.025, "aliquota": 0.21},
+}
 
 
 class ErroValuation(ValueError):
@@ -64,9 +70,11 @@ class Insumos:
     payout: float | None
     cagr_receita: float | None
     cagr_lucro: float | None
-    selic: float | None
+    selic: float | None  # taxa livre de risco da moeda do ativo (Selic ou Treasury 10 anos)
     data_selic: str | None
     multiplos_setor: dict[str, list[float]]
+    moeda: str = "BRL"
+    nome_taxa: str = "Selic"
 
     def como_dict(self) -> dict:
         d = dict(self.__dict__)
@@ -106,7 +114,8 @@ def carregar_insumos(sessao: Session, ticker: str) -> Insumos | None:
         if demo:
             break
     c = demo.campos if demo else {}
-    selic = sessao.scalar(select(SerieEconomica).where(SerieEconomica.codigo == "SELIC_META")
+    conf = POR_MOEDA.get(ativo.moeda, POR_MOEDA["BRL"])
+    selic = sessao.scalar(select(SerieEconomica).where(SerieEconomica.codigo == conf["serie"])
                           .order_by(desc(SerieEconomica.data)).limit(1))
     preco = float(cot.fechamento) if cot else None
     dy = _valor(inds.get("basico.dy"))
@@ -125,11 +134,13 @@ def carregar_insumos(sessao: Session, ticker: str) -> Insumos | None:
         payout=_valor(inds.get("basico.payout")),
         cagr_receita=_valor(inds.get("basico.cagr_receita_5a")), cagr_lucro=_valor(inds.get("basico.cagr_lucro_5a")),
         selic=float(selic.valor) / 100 if selic else None, data_selic=selic.data.isoformat() if selic else None,
-        multiplos_setor=_multiplos_setor(sessao, empresa.setor, empresa.id),
+        multiplos_setor=_multiplos_setor(sessao, empresa.setor, empresa.id, ativo.classe),
+        moeda=ativo.moeda, nome_taxa=conf["nome_taxa"],
     )
 
 
-def _multiplos_setor(sessao: Session, setor: str | None, empresa_id: int) -> dict[str, list[float]]:
+def _multiplos_setor(sessao: Session, setor: str | None, empresa_id: int,
+                     classe: str = "ACAO") -> dict[str, list[float]]:
     """P/L, P/VP e EV/EBITDA das outras empresas do mesmo setor da CVM (um ticker por empresa)."""
     saida: dict[str, list[float]] = {"basico.p_l": [], "basico.p_vp": [], "basico.ev_ebitda": []}
     if not setor:
@@ -137,7 +148,8 @@ def _multiplos_setor(sessao: Session, setor: str | None, empresa_id: int) -> dic
     linhas = sessao.execute(
         select(Ativo.empresa_id, IndicadorCalculado.metrica, IndicadorCalculado.valor)
         .join(IndicadorCalculado, IndicadorCalculado.ativo_id == Ativo.id)
-        .where(Ativo.ativo.is_(True), Ativo.classe == "ACAO", Ativo.empresa_id != empresa_id,
+        .where(Ativo.ativo.is_(True), Ativo.classe.in_(("STOCK", "REIT") if classe in ("STOCK", "REIT") else ("ACAO",)),
+               Ativo.empresa_id != empresa_id,
                Ativo.empresa.has(setor=setor), IndicadorCalculado.metrica.in_(list(saida)),
                IndicadorCalculado.valor.is_not(None)))
     vistos: set[tuple[int, str]] = set()
@@ -154,7 +166,9 @@ def _limitar(v: float | None, minimo: float, maximo: float, padrao: float) -> fl
 
 def premissas_padrao(ins: Insumos) -> dict[str, dict]:
     """Ponto de partida editável de cada método, sempre explicado em `origem`."""
-    selic = ins.selic if ins.selic is not None else 0.10
+    conf = POR_MOEDA.get(ins.moeda, POR_MOEDA["BRL"])
+    taxa_nome, g_perp, ir = conf["nome_taxa"], conf["crescimento"], conf["aliquota"]
+    selic = ins.selic if ins.selic is not None else (0.10 if ins.moeda == "BRL" else 0.04)
     ke = selic + PREMIO_RISCO_PADRAO
     cresc = _limitar(ins.cagr_receita, 0.0, 0.10, 0.03)
     receita = ins.receita or 0.0
@@ -162,7 +176,7 @@ def premissas_padrao(ins: Insumos) -> dict[str, dict]:
     capex_pct = abs(pct(ins.capex))  # a DFC informa o capex como saída (negativo)
     margem = _limitar(pct(ins.ebit) if ins.ebit is not None else None, -1.0, 1.0, 0.10)
     valor_mercado = ins.preco * ins.acoes if ins.preco and ins.acoes else None
-    w = dcf.wacc(valor_mercado, ins.divida_bruta or 0.0, ke, selic + SPREAD_DIVIDA_PADRAO, 0.34)
+    w = dcf.wacc(valor_mercado, ins.divida_bruta or 0.0, ke, selic + SPREAD_DIVIDA_PADRAO, ir)
     wacc = w.valor if w.disponivel else ke
     cresc, ke, wacc, margem = (round(x, 4) for x in (cresc, ke, wacc, margem))  # premissas legíveis (0,01 p.p.)
     return {
@@ -173,32 +187,33 @@ def premissas_padrao(ins: Insumos) -> dict[str, dict]:
                       "payout atual; yield mínimo de 6% (Bazin).",
         },
         "gordon": {
-            "dividendo_atual": ins.dividendo_12m, "custo_capital": ke, "crescimento": CRESCIMENTO_PERPETUO_PADRAO,
-            "origem": f"Dividendos líquidos de 12 meses; custo do capital = Selic ({selic:.2%}) + prêmio de "
-                      f"{PREMIO_RISCO_PADRAO:.0%}; crescimento perpétuo de {CRESCIMENTO_PERPETUO_PADRAO:.0%}.",
+            "dividendo_atual": ins.dividendo_12m, "custo_capital": ke, "crescimento": g_perp,
+            "origem": f"Dividendos líquidos de 12 meses; custo do capital = {taxa_nome} ({selic:.2%}) + prêmio de "
+                      f"{PREMIO_RISCO_PADRAO:.0%}; crescimento perpétuo de {g_perp:.1%}.",
         },
         "ddm_dois_estagios": {
             "dividendo_atual": ins.dividendo_12m, "custo_capital": ke, "crescimento_alto": cresc, "anos_alto": 5,
-            "crescimento_estavel": CRESCIMENTO_PERPETUO_PADRAO,
+            "crescimento_estavel": g_perp,
             "origem": "Primeiro estágio de 5 anos crescendo como a receita dos últimos 5 anos (limitado a 0–10%); "
                       "depois, crescimento perpétuo.",
         },
         "dcf_fcff": {
-            "receita_base": ins.receita, "crescimento_receita": [cresc] * 5, "margem_ebit": margem, "aliquota": 0.34,
+            "receita_base": ins.receita, "crescimento_receita": [cresc] * 5, "margem_ebit": margem, "aliquota": ir,
             "da_pct_receita": round(pct(ins.depreciacao), 4), "capex_pct_receita": round(capex_pct, 4),
             "capital_giro_pct_variacao_receita": 0.10, "taxa_desconto": wacc,
-            "crescimento_perpetuo": CRESCIMENTO_PERPETUO_PADRAO, "divida_liquida": ins.divida_liquida or 0.0,
+            "crescimento_perpetuo": g_perp, "divida_liquida": ins.divida_liquida or 0.0,
             "origem": "Receita, margem EBIT, D&A e capex dos últimos 12 meses; 5 anos crescendo como a receita "
                       "histórica (0–10%); capital de giro = 10% do aumento da receita; desconto pelo WACC "
-                      f"(Ke = Selic + {PREMIO_RISCO_PADRAO:.0%}, Kd = Selic + {SPREAD_DIVIDA_PADRAO:.0%}, IR 34%, "
+                      f"(Ke = {taxa_nome} + {PREMIO_RISCO_PADRAO:.0%}, Kd = {taxa_nome} + "
+                      f"{SPREAD_DIVIDA_PADRAO:.0%}, IR {ir:.0%}, "
                       "pesos a valor de mercado).",
         },
         "dcf_fcfe": {
-            "receita_base": ins.receita, "crescimento_receita": [cresc] * 5, "margem_ebit": margem, "aliquota": 0.34,
+            "receita_base": ins.receita, "crescimento_receita": [cresc] * 5, "margem_ebit": margem, "aliquota": ir,
             "da_pct_receita": round(pct(ins.depreciacao), 4), "capex_pct_receita": round(capex_pct, 4),
             "capital_giro_pct_variacao_receita": 0.10, "juros_anuais": (ins.divida_bruta or 0.0) * (
                 selic + SPREAD_DIVIDA_PADRAO), "nova_divida_anual": 0.0, "taxa_desconto": ke,
-            "crescimento_perpetuo": CRESCIMENTO_PERPETUO_PADRAO,
+            "crescimento_perpetuo": g_perp,
             "origem": "Mesma projeção operacional do FCFF, menos juros após IR (dívida bruta × Kd) e mais nova "
                       "dívida (zero por padrão); desconto pelo custo do capital próprio.",
         },

@@ -25,6 +25,8 @@ export type Cotacao = { valor: number; data: string; fonte: string; coletado_em:
 
 export type ItemLista = {
   ticker: string;
+  classe?: string;
+  moeda?: string;
   nome: string | null;
   setor: string | null;
   cotacao: Cotacao;
@@ -35,6 +37,8 @@ export type Detalhe = {
   ticker: string;
   classe: string;
   isin?: string;
+  mercado?: string;
+  moeda?: string;
   nome?: string;
   cnpj?: string;
   setor?: string;

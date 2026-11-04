@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { TabelaAtivos } from "@/componentes/TabelaAtivos";
 import type { ItemLista } from "@/lib/tipos";
 
-type Props = { base: "acoes" | "fiis"; colunas: { id: string; rotulo: string }[]; exemplo: string };
+type Props = { base: "acoes" | "fiis" | "eua"; colunas: { id: string; rotulo: string }[]; exemplo: string };
 
 /** Busca por ticker ou nome: só consulta e mostra resultados depois de 2 letras digitadas. */
 export function BuscaAtivos({ base, colunas, exemplo }: Props) {

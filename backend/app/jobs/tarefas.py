@@ -30,7 +30,9 @@ from app.ingestao import (
     cvm_fii,
     cvm_fii_trimestral,
     fnet_rendimentos,
+    sec_edgar,
     tesouro,
+    us_treasury,
     yahoo,
 )
 from app.ingestao.base import garantir_fontes
@@ -115,8 +117,14 @@ def proventos(dias_fnet: int = 10) -> None:
 
 
 def macro() -> None:
+    _executar("Treasury 10 anos (EUA)", us_treasury.ingerir)
     _executar("BCB SGS", bcb_sgs.ingerir_todas)
     _executar("Tesouro", tesouro.ingerir, date.today() - timedelta(days=3650))
+
+
+def eua() -> None:
+    """Fundamentos das empresas e REITs dos EUA (SEC) e cadastro dos ETFs da lista do .env."""
+    _executar("SEC EDGAR (EUA)", sec_edgar.ingerir)
 
 
 def indicadores(tickers: list[str] | None = None) -> None:
@@ -271,6 +279,7 @@ def por_em_dia(hoje: date | None = None, agora: datetime | None = None) -> list[
         yahoo_em = ultima_atualizacao(sessao, "YAHOO_FINANCE", "B3_COTAHIST")
         macro_em = ultima_atualizacao(sessao, "BCB_SGS", "TESOURO_TD")
         cvm_em = ultima_atualizacao(sessao, "CVM_DFP", "CVM_ITR")
+        sec_em = ultima_atualizacao(sessao, "SEC_EDGAR")
         fii_em = ultima_atualizacao(sessao, "CVM_FII_MENSAL")
         proventos_em = ultima_atualizacao(sessao, "B3_PROVENTOS", "FNET_RENDIMENTOS")
     feitos: list[str] = []
@@ -294,6 +303,15 @@ def por_em_dia(hoje: date | None = None, agora: datetime | None = None) -> list[
         feitos.append("macro")
     if feitos:  # números novos na tela antes dos downloads demorados da CVM
         _passo("indicadores", indicadores)
+    if _desatualizada(sec_em, agora):  # EUA: balanços na SEC e, na primeira vez, histórico de cotações
+        primeira = sec_em is None
+        _passo("SEC EDGAR", eua)
+        if primeira and usa_yahoo():
+            with FabricaSessao() as sessao:
+                novos = [t for (t,) in sessao.execute(select(Ativo.ticker).where(Ativo.mercado == "US"))]
+            _passo("cotações EUA", _executar, "Yahoo Finance (EUA)", yahoo.ingerir, novos, f"{ANOS_CARGA_INICIAL + 1}y")
+        _passo("indicadores", indicadores)
+        feitos.append("eua")
     if _desatualizada(cvm_em, agora) or _desatualizada(fii_em, agora):
         _passo("cadastro CVM", companhias)
         _passo("balanços", demonstracoes, [hoje.year])

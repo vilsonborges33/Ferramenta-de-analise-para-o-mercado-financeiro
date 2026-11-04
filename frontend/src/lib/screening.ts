@@ -7,6 +7,7 @@ export type ItemScreening = {
   ticker: string;
   nome: string | null;
   setor: string | null;
+  classe?: string;
   besst: boolean;
   preco: number;
   data_preco: string;
@@ -33,6 +34,8 @@ export type ItemScreening = {
 
 export type RespostaScreening = {
   aviso: string;
+  mercado?: "B3" | "EUA";
+  moeda?: string;
   ordenar_por: Metodo;
   atualizado_em: string | null;
   total_avaliados: number;
@@ -64,6 +67,7 @@ export type EstadoFiltros = {
   yieldBazin: number; // %
   fatorGraham: number;
   fatorLynch: number;
+  mercado: "B3" | "EUA";
 };
 
 const vazia = (): Faixa => ({ min: "", max: "" });
@@ -72,7 +76,7 @@ export function filtrosPadrao(): EstadoFiltros {
   const faixas = Object.fromEntries(FAIXAS.map((f) => [f.id, vazia()])) as Record<IdFaixa, Faixa>;
   faixas.liquidez = { min: "1", max: "" };
   return { faixas, setores: [], besst: false, favoritos: false, ordenarPor: "graham", yieldBazin: 6, fatorGraham: 22.5,
-    fatorLynch: 1 };
+    fatorLynch: 1, mercado: "B3" };
 }
 
 /** Número digitado ("6,5", "1.234,5" ou "6.5") → número; vazio ou inválido → null. */
@@ -91,6 +95,7 @@ export function paraConsulta(e: EstadoFiltros): URLSearchParams {
     fator_graham: String(e.fatorGraham),
     fator_lynch: String(e.fatorLynch),
   });
+  if (e.mercado === "EUA") q.set("mercado", "EUA");
   for (const f of FAIXAS) {
     for (const lado of ["min", "max"] as const) {
       const n = lerNumero(e.faixas[f.id][lado]);

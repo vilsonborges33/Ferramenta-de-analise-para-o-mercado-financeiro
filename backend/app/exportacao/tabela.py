@@ -46,7 +46,8 @@ _FORMATOS_XLSX = {"numero": "#,##0.00", "percentual": "0.00%", "moeda": '"R$" #,
 
 
 def para_xlsx(linhas: list[dict], colunas: list[Coluna], aviso: str, fonte: str, atualizado_em: str | None,
-              titulo: str = "Screening") -> bytes:
+              titulo: str = "Screening", moeda: str = "BRL") -> bytes:
+    formatos = {**_FORMATOS_XLSX, "moeda": '"US$" #,##0.00' if moeda == "USD" else _FORMATOS_XLSX["moeda"]}
     livro = Workbook()
     folha = livro.active
     folha.title = titulo[:31]
@@ -56,9 +57,9 @@ def para_xlsx(linhas: list[dict], colunas: list[Coluna], aviso: str, fonte: str,
     for linha in linhas:
         folha.append([linha.get(c.chave) for c in colunas])
     for i, c in enumerate(colunas, start=1):
-        if c.formato in _FORMATOS_XLSX:
+        if c.formato in formatos:
             for (celula,) in folha.iter_rows(min_row=2, max_row=len(linhas) + 1, min_col=i, max_col=i):
-                celula.number_format = _FORMATOS_XLSX[c.formato]
+                celula.number_format = formatos[c.formato]
         folha.column_dimensions[get_column_letter(i)].width = max(10, len(c.titulo) + 2)
     folha.freeze_panes = "B2"
     folha.append([])

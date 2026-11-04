@@ -1,5 +1,6 @@
 "use client";
 
+import { useMoeda } from "@/lib/moeda";
 import { useEffect, useMemo, useState } from "react";
 import { Grafico, porcento, reais } from "@/componentes/Grafico";
 import { formatarData, formatarValor, nomeFonte } from "@/lib/formato";
@@ -13,6 +14,7 @@ type Resposta = { pagamentos: Pagamento[]; anos: Ano[]; dy_medio: number | null;
 const TIPOS: Record<string, string> = { DIVIDENDO: "Dividendo", JCP: "JCP", RENDIMENTO: "Rendimento" };
 
 export function SecaoDividendos({ ticker }: { ticker: string }) {
+  const { fv, fm, simbolo } = useMoeda();
   const [dados, setDados] = useState<Resposta | null>(null);
   const [anos, setAnos] = useState(5);
   const [verPagamentos, setVerPagamentos] = useState(false);
@@ -29,12 +31,12 @@ export function SecaoDividendos({ ticker }: { ticker: string }) {
     tooltip: { trigger: "axis" },
     xAxis: { type: "category", data: serie.map((a) => (a.parcial ? `${a.ano}*` : String(a.ano))) },
     yAxis: [
-      { type: "value", axisLabel: { formatter: (v: number) => `R$ ${v.toLocaleString("pt-BR")}` } },
+      { type: "value", axisLabel: { formatter: (v: number) => `${simbolo} ${v.toLocaleString("pt-BR")}` } },
       { type: "value", axisLabel: { formatter: porcento }, splitLine: { show: false } },
     ],
     series: [
       { name: "Proventos líquidos por ação", type: "bar", data: serie.map((a) => a.total_liquido),
-        itemStyle: { color: "#a86400" }, tooltip: { valueFormatter: reais } },
+        itemStyle: { color: "#a86400" }, tooltip: { valueFormatter: (v: unknown) => fv(Number(v), "R$/ação") } },
       { name: "Dividend yield", type: "line", yAxisIndex: 1, data: serie.map((a) => a.dividend_yield),
         tooltip: { valueFormatter: porcento } },
     ],
@@ -53,10 +55,10 @@ export function SecaoDividendos({ ticker }: { ticker: string }) {
         ))}
       </div>
       <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-        <div className="cartao p-3"><dt className="suave text-xs">DY médio (anos completos)</dt><dd className="font-medium">{formatarValor(dados.dy_medio, "%")}</dd></div>
-        <div className="cartao p-3"><dt className="suave text-xs">DY mínimo / máximo</dt><dd className="font-medium">{formatarValor(dados.dy_minimo, "%")} / {formatarValor(dados.dy_maximo, "%")}</dd></div>
-        <div className="cartao p-3"><dt className="suave text-xs">Pago em {ultimos12?.ano} (parcial)</dt><dd className="font-medium">{formatarValor(ultimos12?.total_liquido ?? null, "R$/ação")}</dd></div>
-        <div className="cartao p-3"><dt className="suave text-xs">Total em 10 anos</dt><dd className="font-medium">{formatarValor(dados.anos.reduce((s, a) => s + a.total_liquido, 0), "R$/ação")}</dd></div>
+        <div className="cartao p-3"><dt className="suave text-xs">DY médio (anos completos)</dt><dd className="font-medium">{fv(dados.dy_medio, "%")}</dd></div>
+        <div className="cartao p-3"><dt className="suave text-xs">DY mínimo / máximo</dt><dd className="font-medium">{fv(dados.dy_minimo, "%")} / {fv(dados.dy_maximo, "%")}</dd></div>
+        <div className="cartao p-3"><dt className="suave text-xs">Pago em {ultimos12?.ano} (parcial)</dt><dd className="font-medium">{fv(ultimos12?.total_liquido ?? null, "R$/ação")}</dd></div>
+        <div className="cartao p-3"><dt className="suave text-xs">Total em 10 anos</dt><dd className="font-medium">{fv(dados.anos.reduce((s, a) => s + a.total_liquido, 0), "R$/ação")}</dd></div>
       </dl>
       <Grafico opcao={opcao} rotulo={`Proventos de ${ticker} por ano`} />
       <p className="suave text-xs">{dados.criterio} Fonte: {dados.fontes.map(nomeFonte).join(", ")}.</p>
@@ -80,8 +82,8 @@ export function SecaoDividendos({ ticker }: { ticker: string }) {
                   <td className="px-3 py-1" title={p.data_pagamento ? "" : "a fonte não informa a data de pagamento; usada a data-ex"}>
                     {p.data_pagamento ? formatarData(p.data_pagamento) : `${formatarData(p.data_ex)} (ex)`}
                   </td>
-                  <td className="px-3 py-1">{formatarValor(p.valor_bruto, "R$/ação")}</td>
-                  <td className="px-3 py-1 font-medium">{formatarValor(p.valor_liquido, "R$/ação")}</td>
+                  <td className="px-3 py-1">{fv(p.valor_bruto, "R$/ação")}</td>
+                  <td className="px-3 py-1 font-medium">{fv(p.valor_liquido, "R$/ação")}</td>
                 </tr>
               ))}
             </tbody>

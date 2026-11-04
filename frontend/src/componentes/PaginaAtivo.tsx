@@ -5,13 +5,19 @@ import { PainelValuation } from "@/componentes/PainelValuation";
 import { SecaoDividendos } from "@/componentes/SecaoDividendos";
 import { SecaoHistorico } from "@/componentes/SecaoHistorico";
 import { PainelGordonFii, SecoesFundo } from "@/componentes/SecoesFundo";
+import { CustosEtf } from "@/componentes/CustosEtf";
 import { GraficoCotacao } from "@/componentes/GraficoCotacao";
+import { MoedaProvider } from "@/lib/moeda";
 import { Numero } from "@/componentes/Numero";
 import { formatarData, formatarValor, nomeFonte } from "@/lib/formato";
 import type { Detalhe } from "@/lib/tipos";
 
 const METODOS_DE_PRECO = ["Graham", "Bazin", "Lynch", "Greenblatt"];
 const DESTAQUES = ["basico.roe", "basico.p_l", "basico.dy", "basico.liquidez_diaria"];
+const DESTAQUES_REIT = ["reit.p_ffo", "basico.dy", "reit.payout_ffo", "basico.liquidez_diaria"];
+const DESTAQUES_ETF = ["basico.dy", "basico.liquidez_diaria"];
+const SECOES_ETF = [["cotacao", "Cotação"], ["custos", "Custos"], ["dividendos", "Dividendos"],
+  ["indicadores", "Indicadores"]] as const;
 const DESTAQUES_FII = ["fii.p_vp", "basico.dy", "fii.vacancia", "fii.alavancagem"];
 const SECOES_FII = [
   ["cotacao", "Cotação"], ["valuation", "Valuation"], ["dividendos", "Rendimentos"], ["indicadores", "Indicadores"],
@@ -22,7 +28,7 @@ const SECOES_ACAO = [
   ["cotacao", "Cotação"], ["valuation", "Valuation"], ["dividendos", "Dividendos"], ["indicadores", "Indicadores"],
   ["historico", "Histórico"], ["empresa", "Empresa"],
 ] as const;
-const ORDEM_GRUPOS = ["Valuation", "Graham", "Bazin", "Lynch", "Greenblatt", "Rentabilidade", "Endividamento",
+const ORDEM_GRUPOS = ["Valuation", "REIT", "Graham", "Bazin", "Lynch", "Greenblatt", "Rentabilidade", "Endividamento",
   "Crescimento", "Mercado", "Base"];
 
 function Secao({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
@@ -35,17 +41,23 @@ function Secao({ id, titulo, children }: { id: string; titulo: string; children:
 }
 
 export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
-  const acao = ativo.classe !== "FII";
+  const fii = ativo.classe === "FII";
+  const etf = ativo.classe === "ETF";
+  const eua = ativo.mercado === "US";
+  const acao = !fii && !etf; // ações da B3, ações e REITs dos EUA
+  const moeda = ativo.moeda ?? "BRL";
   const grupos = Object.entries(ativo.grupos)
     .filter(([grupo]) => !(acao && METODOS_DE_PRECO.includes(grupo))) // nas ações, os métodos ficam no painel de valuation
     .sort(([a], [b]) => ORDEM_GRUPOS.indexOf(a) - ORDEM_GRUPOS.indexOf(b));
   const todos = Object.values(ativo.grupos).flat();
-  const destaques = (acao ? DESTAQUES : DESTAQUES_FII).map((id) => todos.find((n) => n.metrica === id))
+  const destaques = (fii ? DESTAQUES_FII : etf ? DESTAQUES_ETF : ativo.classe === "REIT" ? DESTAQUES_REIT : DESTAQUES)
+    .map((id) => todos.find((n) => n.metrica === id))
     .filter((n) => n !== undefined);
-  const secoes = acao ? SECOES_ACAO : SECOES_FII;
+  const secoes = acao ? SECOES_ACAO : fii ? SECOES_FII : SECOES_ETF;
   const fichas: [string, string | undefined][] = [
     ["CNPJ", ativo.cnpj],
-    ["Setor (CVM)", ativo.setor],
+    [eua ? "Setor (SEC)" : "Setor (CVM)", ativo.setor],
+    ["Mercado", eua ? "EUA (valores em US$)" : undefined],
     ["Segmento de listagem", ativo.segmento_listagem],
     ["Segmento", ativo.segmento],
     ["Mandato", ativo.mandato],
@@ -54,10 +66,12 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
     ["Código ISIN", ativo.isin],
   ];
   return (
+    <MoedaProvider moeda={moeda}>
     <div className="space-y-5">
       <div>
         <div className="suave text-xs">
-          <Link href={acao ? "/acoes" : "/fiis"} className="hover:underline">{acao ? "Ações" : "FIIs"}</Link> › {ativo.ticker}
+          <Link href={eua ? "/eua" : fii ? "/fiis" : "/acoes"} className="hover:underline">
+            {eua ? "EUA" : fii ? "FIIs" : "Ações"}</Link> › {ativo.ticker}
         </div>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -81,7 +95,7 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
           </div>
           {ativo.cotacao && (
             <div className="text-right">
-              <div className="text-2xl font-semibold">{formatarValor(ativo.cotacao.valor, "R$/ação")}</div>
+              <div className="text-2xl font-semibold">{formatarValor(ativo.cotacao.valor, "R$/ação", moeda)}</div>
               <div className="text-xs suave">
                 fechamento de {formatarData(ativo.cotacao.data)} · {nomeFonte(ativo.cotacao.fonte)}
               </div>
@@ -117,7 +131,7 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
         <GraficoCotacao ticker={ativo.ticker} />
       </Secao>
 
-      {!acao && (
+      {fii && (
         <Secao id="valuation" titulo="Valuation — preço teto pelo Gordon ajustado">
           <PainelGordonFii ticker={ativo.ticker} />
         </Secao>
@@ -132,7 +146,13 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
         </Secao>
       )}
 
-      <Secao id="dividendos" titulo={acao ? "Dividendos" : "Rendimentos"}>
+      {etf && (
+        <Secao id="custos" titulo="Custos do ETF (Bogle)">
+          <CustosEtf ticker={ativo.ticker} />
+        </Secao>
+      )}
+
+      <Secao id="dividendos" titulo={fii ? "Rendimentos" : "Dividendos"}>
         <SecaoDividendos ticker={ativo.ticker} />
       </Secao>
 
@@ -159,7 +179,7 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
         </div>
       </Secao>
 
-      {!acao && <SecoesFundo ticker={ativo.ticker} />}
+      {fii && <SecoesFundo ticker={ativo.ticker} />}
 
       {acao && (
         <Secao id="historico" titulo="Histórico anual">
@@ -180,5 +200,6 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
         </dl>
       </Secao>
     </div>
+    </MoedaProvider>
   );
 }

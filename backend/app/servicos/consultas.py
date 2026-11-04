@@ -58,15 +58,19 @@ BUSCA_MINIMA = 2
 LIMITE_BUSCA = 20
 
 
-def listar(sessao: Session, classe: str, busca: str | None = None) -> list[dict]:
+CLASSES_EUA = ("STOCK", "REIT", "ETF")
+
+
+def listar(sessao: Session, classe: str | tuple[str, ...], busca: str | None = None) -> list[dict]:
     """Busca por ticker ou nome (mínimo de 2 letras). Sem busca, não lista nada: a listagem geral
     fica no ranking "Mais baratas"."""
     termo = (busca or "").strip()
     if len(termo) < BUSCA_MINIMA:
         return []
+    classes = (classe,) if isinstance(classe, str) else classe
     consulta = (select(Ativo)
                 .outerjoin(Empresa, Empresa.id == Ativo.empresa_id).outerjoin(Fii, Fii.ativo_id == Ativo.id)
-                .where(Ativo.classe == classe, Ativo.ativo.is_(True),
+                .where(Ativo.classe.in_(classes), Ativo.ativo.is_(True),
                        or_(Ativo.ticker.ilike(f"{termo}%"), Empresa.nome.ilike(f"%{termo}%"),
                            Fii.nome.ilike(f"%{termo}%")))
                 .order_by(Ativo.ticker).limit(LIMITE_BUSCA))
@@ -81,6 +85,7 @@ def listar(sessao: Session, classe: str, busca: str | None = None) -> list[dict]
         nome = nomes_fii.get(a.id) if classe == "FII" else (a.empresa.nome if a.empresa else None)
         saida.append({
             "ticker": a.ticker, "nome": nome, "setor": a.empresa.setor if a.empresa else None,
+            "classe": a.classe, "moeda": a.moeda,
             "cotacao": _cotacao(sessao, a.id, fontes),
             "indicadores": {m: numero(inds.get(a.id, {}).get(m), m) for m in colunas},
         })
@@ -128,12 +133,14 @@ def detalhe(sessao: Session, ticker: str) -> dict | None:
     inds = _indicadores(sessao, [ativo.id]).get(ativo.id, {})
     fontes = {f.id: f.codigo for f in sessao.scalars(select(Fonte))}
     grupos: dict[str, list[dict]] = {}
+    # Ações dos EUA usam as métricas de ações; REITs, as de ações e as próprias; ETFs, só as de ETF.
+    tipos = {"FII": {"FII"}, "ETF": {"ETF"}, "REIT": {"ACAO", "REIT"}}.get(ativo.classe, {"ACAO"})
     for metrica in POR_ID.values():
-        tipo = "FII" if ativo.classe == "FII" else "ACAO"
-        if tipo not in metrica.aplica_a or not metrica.exibir_no_ativo:
+        if not tipos & set(metrica.aplica_a) or not metrica.exibir_no_ativo:
             continue
         grupos.setdefault(metrica.grupo, []).append(numero(inds.get(metrica.id), metrica.id))
-    info: dict = {"ticker": ativo.ticker, "classe": ativo.classe, "especie": ativo.especie, "isin": ativo.isin}
+    info: dict = {"ticker": ativo.ticker, "classe": ativo.classe, "especie": ativo.especie, "isin": ativo.isin,
+                  "mercado": ativo.mercado, "moeda": ativo.moeda}
     if ativo.empresa:
         e = ativo.empresa
         info.update(nome=e.nome, cnpj=e.cnpj, setor=e.setor, segmento_listagem=e.segmento_listagem,

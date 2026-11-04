@@ -8,6 +8,13 @@ from pathlib import Path
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Listas padrão do mercado dos EUA (Fase 7); TICKERS_EUA e ETFS_EUA no .env substituem.
+TICKERS_EUA_PADRAO = (
+    "AAPL,MSFT,GOOGL,AMZN,META,NVDA,JNJ,JPM,V,PG,KO,PEP,WMT,HD,MCD,XOM,CVX,PFE,MRK,ABBV,UNH,COST,DIS,"
+    "CSCO,INTC,ORCL,IBM,T,VZ,O,PLD,SPG,AMT,EQIX,PSA,VICI,WPC,NNN,STAG"
+)
+ETFS_EUA_PADRAO = "SPY,VOO,VTI,QQQ,SCHD,VNQ,VXUS,BND"
+
 
 class Configuracao(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -23,6 +30,19 @@ class Configuracao(BaseSettings):
 
     # Cotações e dividendos: "yahoo" (padrão) ou "b3" (COTAHIST + proventos B3/FNET).
     fonte_mercado: str = "yahoo"
+
+    # Mercado dos EUA (Fase 7): empresas e REITs com balanço na SEC, e ETFs (só cotação e dividendos).
+    # A lista é editável no .env; a SEC exige CONTATO_USER_AGENT com um e-mail.
+    tickers_eua: str = ""
+    etfs_eua: str = ""
+
+    @property
+    def lista_tickers_eua(self) -> list[str]:
+        return [t.strip().upper() for t in (self.tickers_eua or TICKERS_EUA_PADRAO).split(",") if t.strip()]
+
+    @property
+    def lista_etfs_eua(self) -> list[str]:
+        return [t.strip().upper() for t in (self.etfs_eua or ETFS_EUA_PADRAO).split(",") if t.strip()]
 
     brapi_token: str = ""
     # O plano gratuito da brapi não inclui proventos; ligar só com plano pago.

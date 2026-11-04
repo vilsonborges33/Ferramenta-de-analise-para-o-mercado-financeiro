@@ -39,8 +39,12 @@ def _ultimas_cotacoes(sessao: Session) -> dict[int, tuple[float, str]]:
     return {a: (float(f), d.isoformat()) for a, f, d in sessao.execute(consulta)}
 
 
-def _universo(sessao: Session) -> list[dict]:
-    ativos = list(sessao.scalars(select(Ativo).where(Ativo.classe == "ACAO", Ativo.ativo.is_(True))))
+CLASSES_POR_MERCADO = {"B3": ("ACAO",), "EUA": ("STOCK", "REIT")}
+
+
+def _universo(sessao: Session, mercado: str = "B3") -> list[dict]:
+    ativos = list(sessao.scalars(select(Ativo).where(Ativo.classe.in_(CLASSES_POR_MERCADO[mercado]),
+                                                     Ativo.ativo.is_(True))))
     valores: dict[int, dict[str, tuple[float | None, list]]] = {}
     motivos_dy: dict[int, str | None] = {}
     consulta = select(IndicadorCalculado.ativo_id, IndicadorCalculado.metrica, IndicadorCalculado.valor,
@@ -56,7 +60,7 @@ def _universo(sessao: Session) -> list[dict]:
         v = valores.get(a.id, {})
         preco, data = cotacoes.get(a.id, (None, None))
         universo.append({
-            "ticker": a.ticker, "nome": a.empresa.nome if a.empresa else None,
+            "ticker": a.ticker, "nome": a.empresa.nome if a.empresa else None, "classe": a.classe,
             "setor": a.empresa.setor if a.empresa else None,
             "tipo_plano_contas": a.empresa.tipo_plano_contas if a.empresa else "geral",
             "preco": preco, "data_preco": data,

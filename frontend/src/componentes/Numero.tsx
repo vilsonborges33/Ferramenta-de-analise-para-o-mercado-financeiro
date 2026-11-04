@@ -1,5 +1,6 @@
 "use client";
 
+import { useMoeda } from "@/lib/moeda";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { formatarData, formatarValor, nomeFonte } from "@/lib/formato";
@@ -7,6 +8,7 @@ import type { Numero as TNumero } from "@/lib/tipos";
 
 /** Valor formatado + ícone ⓘ que abre fórmula, motivo de indisponibilidade e procedência dos insumos. */
 export function Numero({ numero, compacto = false }: { numero: TNumero; compacto?: boolean }) {
+  const { fv, fm, simbolo } = useMoeda();
   const [aberto, setAberto] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
 
@@ -27,7 +29,7 @@ export function Numero({ numero, compacto = false }: { numero: TNumero; compacto
   return (
     <span ref={ref} className="relative inline-flex items-center gap-1">
       <span className={indisponivel ? "suave" : ""} title={indisponivel ? numero.motivo_indisponivel ?? "" : undefined}>
-        {indisponivel ? (compacto ? "—" : "dado indisponível") : formatarValor(numero.valor, numero.unidade)}
+        {indisponivel ? (compacto ? "—" : "dado indisponível") : fv(numero.valor, numero.unidade)}
       </span>
       {numero.aviso && !indisponivel && (
         <span title={numero.aviso} style={{ color: "var(--alerta)" }} aria-label={numero.aviso}>

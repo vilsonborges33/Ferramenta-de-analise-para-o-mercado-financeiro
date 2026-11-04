@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Numero } from "@/componentes/Numero";
 import { formatarValor } from "@/lib/formato";
+import { MoedaProvider } from "@/lib/moeda";
 import type { ItemLista } from "@/lib/tipos";
 
 type Props = {
   itens: ItemLista[];
   colunas: { id: string; rotulo: string }[];
-  base: "acoes" | "fiis";
+  base: "acoes" | "fiis" | "eua";
   vazio: string;
 };
 
@@ -67,11 +68,13 @@ export function TabelaAtivos({ itens, colunas, base, vazio }: Props) {
                   <div className="suave max-w-48 truncate text-xs">{i.nome}</div>
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-right">
-                  {i.cotacao ? formatarValor(i.cotacao.valor, "R$/ação") : "—"}
+                  {i.cotacao ? formatarValor(i.cotacao.valor, "R$/ação", i.moeda) : "—"}
                 </td>
                 {colunas.map((c) => (
                   <td key={c.id} className="whitespace-nowrap px-3 py-2 text-right">
-                    {i.indicadores[c.id] ? <Numero numero={i.indicadores[c.id]} compacto /> : "—"}
+                    {i.indicadores[c.id] ? (
+                      <MoedaProvider moeda={i.moeda ?? "BRL"}><Numero numero={i.indicadores[c.id]} compacto /></MoedaProvider>
+                    ) : "—"}
                   </td>
                 ))}
               </tr>

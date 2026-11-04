@@ -6,6 +6,7 @@ type Props = {
   estado: EstadoFiltros;
   setores: string[];
   aoMudar: (e: EstadoFiltros) => void;
+  moeda?: string;
 };
 
 const PARAMETROS: { metodo: Metodo; rotulo: string; chave: "yieldBazin" | "fatorGraham" | "fatorLynch";
@@ -18,7 +19,7 @@ const PARAMETROS: { metodo: Metodo; rotulo: string; chave: "yieldBazin" | "fator
     dica: "P/L justo = multiplicador × crescimento do lucro (1 = PEG 1)." },
 ];
 
-export function FiltrosScreening({ estado, setores, aoMudar }: Props) {
+export function FiltrosScreening({ estado, setores, aoMudar, moeda = "BRL" }: Props) {
   const faixa = (id: IdFaixa, lado: "min" | "max", valor: string) =>
     aoMudar({ ...estado, faixas: { ...estado.faixas, [id]: { ...estado.faixas[id], [lado]: valor } } });
   const alternarSetor = (setor: string) =>
@@ -34,7 +35,7 @@ export function FiltrosScreening({ estado, setores, aoMudar }: Props) {
         {FAIXAS.map((f) => (
           <div key={f.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-2">
             <span>
-              {f.titulo} <span className="suave text-xs">({f.sufixo})</span>
+              {f.titulo} <span className="suave text-xs">({moeda === "USD" ? f.sufixo.replace("R$", "US$") : f.sufixo})</span>
             </span>
             <input aria-label={`${f.titulo} mínimo`} inputMode="decimal" placeholder="mín." className="campo w-20 text-right"
               value={estado.faixas[f.id].min} onChange={(e) => faixa(f.id, "min", e.target.value)} />

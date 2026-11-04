@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const PAGINAS = ["/", "/acoes", "/fiis", "/fiis/ranking", "/mais-baratas", "/valuations", "/carteira", "/diario", "/metodologia", "/status", "/entrar"];
+const PAGINAS = ["/", "/acoes", "/fiis", "/eua", "/fiis/ranking", "/mais-baratas", "/valuations", "/carteira", "/diario", "/metodologia", "/status", "/entrar"];
 
 for (const caminho of PAGINAS) {
   test(`sem rolagem horizontal da página em ${caminho}`, async ({ page }) => {
@@ -157,4 +157,20 @@ test("carteira: criar, lançar, ver posições, rentabilidade, otimizador e diá
   await page.getByLabel("Tese").fill("Desconto sobre o valor de Graham.");
   await page.getByRole("button", { name: "Registrar decisão" }).click();
   await expect(page.locator("article")).toContainText("Comprar EXMP3");
+});
+
+test("EUA: REIT com FFO, ETF com custos de Bogle e ranking em US$", async ({ page }) => {
+  const reit = await page.goto(`/eua/${process.env.REIT_TESTE ?? "EXRT"}`);
+  test.skip(!reit || reit.status() === 404, "base sem ativos dos EUA");
+  await expect(page.locator("#indicadores")).toContainText("FFO");
+  await expect(page.locator("body")).toContainText("US$");
+  await page.goto(`/eua/${process.env.ETF_TESTE ?? "SPY"}`);
+  await expect(page.locator("#custos")).toContainText("A taxa consome");
+  await page.getByLabel("Taxa anual (%)").fill("1");
+  await expect(page.locator("#custos")).toContainText("Um fundo de 0,03%");
+  await page.goto("/mais-baratas?mercado=EUA");
+  await expect(page.getByRole("heading", { name: /dos EUA/ })).toBeVisible();
+  await expect(page.locator("tbody")).toContainText("US$");
+  const larguras = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
+  expect(larguras[0]).toBeLessThanOrEqual(larguras[1]);
 });

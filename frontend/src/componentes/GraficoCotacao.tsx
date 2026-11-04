@@ -1,5 +1,6 @@
 "use client";
 
+import { useMoeda } from "@/lib/moeda";
 import { useEffect, useMemo, useState } from "react";
 import { Grafico, reais, reaisCurto } from "@/componentes/Grafico";
 import { formatarData, formatarValor } from "@/lib/formato";
@@ -28,6 +29,7 @@ export function recortar(pontos: Ponto[], periodo: (typeof PERIODOS)[number]["id
 
 /** Cotação de fechamento com volume, seletor de período e resumo (início, variação, mínima e máxima). */
 export function GraficoCotacao({ ticker }: { ticker: string }) {
+  const { fv, fm, simbolo } = useMoeda();
   const [pontos, setPontos] = useState<Ponto[] | null>(null);
   const [periodo, setPeriodo] = useState<(typeof PERIODOS)[number]["id"]>("1a");
 
@@ -58,9 +60,9 @@ export function GraficoCotacao({ ticker }: { ticker: string }) {
       dataZoom: [{ type: "inside", xAxisIndex: [0, 1] }],
       series: [
         { name: "Fechamento", type: "line", data: trecho.map((p) => p.fechamento), showSymbol: false,
-          lineStyle: { width: 1.5 }, tooltip: { valueFormatter: reais } },
+          lineStyle: { width: 1.5 }, tooltip: { valueFormatter: (v: unknown) => fv(Number(v), "R$/ação") } },
         { name: "Volume", type: "bar", xAxisIndex: 1, yAxisIndex: 1, data: trecho.map((p) => p.volume),
-          itemStyle: { opacity: 0.5 }, tooltip: { valueFormatter: (v: unknown) => `R$ ${reaisCurto(Number(v))}` } },
+          itemStyle: { opacity: 0.5 }, tooltip: { valueFormatter: (v: unknown) => `${simbolo} ${reaisCurto(Number(v))}` } },
       ],
     }),
     [trecho],
@@ -87,17 +89,17 @@ export function GraficoCotacao({ ticker }: { ticker: string }) {
       <div className="grid gap-4 lg:grid-cols-[1fr_12rem]">
         <Grafico opcao={opcao} altura="h-72" rotulo={`Cotações de ${ticker}`} />
         <dl className="grid grid-cols-2 gap-2 text-sm lg:grid-cols-1">
-          <div><dt className="suave text-xs">Início do período</dt><dd>{formatarValor(inicio, "R$/ação")}</dd></div>
-          <div><dt className="suave text-xs">Último fechamento</dt><dd>{formatarValor(fim, "R$/ação")}</dd></div>
+          <div><dt className="suave text-xs">Início do período</dt><dd>{fv(inicio, "R$/ação")}</dd></div>
+          <div><dt className="suave text-xs">Último fechamento</dt><dd>{fv(fim, "R$/ação")}</dd></div>
           <div>
             <dt className="suave text-xs">Variação</dt>
             <dd style={{ color: (variacao ?? 0) >= 0 ? "var(--destaque)" : "var(--negativo)" }}>
-              {formatarValor(variacao, "%")}
+              {fv(variacao, "%")}
             </dd>
           </div>
           <div>
             <dt className="suave text-xs">Mínima / máxima</dt>
-            <dd>{formatarValor(Math.min(...precos), "R$/ação")} / {formatarValor(Math.max(...precos), "R$/ação")}</dd>
+            <dd>{fv(Math.min(...precos), "R$/ação")} / {fv(Math.max(...precos), "R$/ação")}</dd>
           </div>
           <p className="suave col-span-2 text-xs lg:col-span-1">Fechamentos sem ajuste por proventos.</p>
         </dl>

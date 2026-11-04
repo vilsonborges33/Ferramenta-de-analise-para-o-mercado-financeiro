@@ -30,6 +30,7 @@ from app.metodologias import bazin, graham, lynch
 from app.metodologias import fii as mfii
 from app.metodologias import greenblatt as gb
 from app.metodologias import indicadores_basicos as ib
+from app.metodologias import reit as mreit
 from app.metodologias.registro import POR_ID
 from app.metodologias.tipos import Resultado, indisponivel
 
@@ -418,9 +419,55 @@ class Calculadora:
     def calcular(self, ativo: Ativo) -> list[Calculo]:
         if ativo.classe == "FII":
             return self.calcular_fii(ativo)
+        if ativo.classe == "ETF":
+            return self.calcular_etf(ativo)
         if ativo.empresa is not None:
-            return self.calcular_acao(ativo)
+            calculos = self.calcular_acao(ativo)
+            if ativo.classe == "REIT":
+                calculos += self.calcular_reit(ativo, calculos)
+            return calculos
         return []
+
+    def calcular_etf(self, ativo: Ativo) -> list[Calculo]:
+        """ETFs (EUA): só cotação, dividend yield e liquidez — não há balanço próprio na SEC."""
+        cotacao = self.ultima_cotacao(ativo.id)
+        preco = float(cotacao.fechamento) if cotacao else None
+        referencia = cotacao.data if cotacao else date.today()
+        soma, proventos, motivo = self.proventos_12m(ativo.id, referencia, ativo.classe)
+        i_preco = [self._insumo("preco", preco, cotacao, data_pregao=cotacao.data.isoformat())] if cotacao else []
+        i_prov = [self._insumo("provento", p.valor_por_cota, p, data_com=p.data_com.isoformat()) for p in proventos]
+        dy = indisponivel(motivo) if motivo else ib.dividend_yield(soma, preco)
+        return [self._liquidez(ativo), Calculo("basico.dy", dy, i_preco + i_prov, referencia)]
+
+    def calcular_reit(self, ativo: Ativo, calculos: list[Calculo]) -> list[Calculo]:
+        """FFO, AFFO, P/FFO e cobertura dos dividendos (NAREIT; Damodaran)."""
+        demo = self.padronizada(ativo.empresa_id, "ttm") or self.padronizada(ativo.empresa_id, "ano")
+        c = demo.campos if demo else {}
+        por_id = {x.metrica: x for x in calculos}
+
+        def insumo(campo: str):
+            return self._insumo(campo, c.get(campo), demo, periodo=demo.periodo, tipo_periodo=demo.tipo_periodo,
+                                contas=demo.insumos.get(campo, [])) if demo else None
+
+        base = [i for i in (insumo("lucro_liquido_controladores"), insumo("depreciacao_amortizacao"),
+                            insumo("ganho_venda_imoveis")) if i]
+        f = mreit.ffo(c.get("lucro_liquido_controladores"), c.get("depreciacao_amortizacao"),
+                      c.get("ganho_venda_imoveis"))
+        vm = por_id.get("basico.valor_mercado")
+        lpa = por_id.get("basico.lpa")
+        acoes = next((i.valor for i in (lpa.insumos if lpa else []) if i.insumo == "acoes_em_circulacao"), None)
+        data_ref = demo.data_fim if demo else None
+        i_acoes = [i for i in (lpa.insumos if lpa else []) if i.insumo == "acoes_em_circulacao"]
+        return [
+            Calculo("reit.ffo", f, base, data_ref),
+            Calculo("reit.ffo_acao", mreit.por_acao(f.valor, acoes), base + i_acoes, data_ref),
+            Calculo("reit.p_ffo", mreit.p_ffo(vm.resultado.valor if vm else None, f.valor),
+                    base + (vm.insumos if vm else []), data_ref),
+            Calculo("reit.affo", mreit.affo(f.valor, c.get("capex_manutencao")),
+                    base + [i for i in (insumo("capex_manutencao"),) if i], data_ref),
+            Calculo("reit.payout_ffo", mreit.payout_ffo(c.get("dividendos_pagos"), f.valor),
+                    base + [i for i in (insumo("dividendos_pagos"),) if i], data_ref),
+        ]
 
     def materializar(self, ativo: Ativo) -> int:
         calculos = self.calcular(ativo)
@@ -445,7 +492,7 @@ class Calculadora:
 
 def recalcular(sessao: Session, tickers: list[str] | None = None) -> int:
     calc = Calculadora(sessao)
-    consulta = select(Ativo).where(Ativo.ativo.is_(True), Ativo.classe.in_(("ACAO", "FII")))
+    consulta = select(Ativo).where(Ativo.ativo.is_(True), Ativo.classe.in_(("ACAO", "FII", "STOCK", "REIT", "ETF")))
     if tickers:
         consulta = consulta.where(Ativo.ticker.in_(tickers))
     total = 0

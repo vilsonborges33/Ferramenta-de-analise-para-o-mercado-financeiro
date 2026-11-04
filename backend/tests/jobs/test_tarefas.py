@@ -134,7 +134,7 @@ def test_por_em_dia_busca_so_o_que_esta_atrasado(sessao, monkeypatch):
     with lote(sessao, "YAHOO_FINANCE") as ctx:
         sessao.add(CotacaoDiaria(ativo_id=ativo.id, data=date(2026, 10, 20), fechamento=Decimal(1),
                                  **ctx.procedencia(date(2026, 10, 20))))
-    with lote(sessao, "BCB_SGS"), lote(sessao, "CVM_DFP"), lote(sessao, "CVM_FII_MENSAL"):
+    with lote(sessao, "BCB_SGS"), lote(sessao, "CVM_DFP"), lote(sessao, "CVM_FII_MENSAL"), lote(sessao, "SEC_EDGAR"):
         pass
     from app.db.modelos import Fonte, LoteIngestao
     for registro in sessao.scalars(select(LoteIngestao).join(Fonte, Fonte.id == LoteIngestao.fonte_id)
@@ -192,7 +192,7 @@ def test_feriado_nao_refaz_a_busca_a_cada_hora(sessao, monkeypatch):
     with lote(sessao, "YAHOO_FINANCE") as ctx:  # rodada de agora há pouco
         sessao.add(CotacaoDiaria(ativo_id=ativo.id, data=date(2026, 10, 30), fechamento=Decimal(1),
                                  **ctx.procedencia(date(2026, 10, 30))))
-    with lote(sessao, "BCB_SGS"), lote(sessao, "CVM_DFP"), lote(sessao, "CVM_FII_MENSAL"):
+    with lote(sessao, "BCB_SGS"), lote(sessao, "CVM_DFP"), lote(sessao, "CVM_FII_MENSAL"), lote(sessao, "SEC_EDGAR"):
         pass
     sessao.commit()
     chamadas = []

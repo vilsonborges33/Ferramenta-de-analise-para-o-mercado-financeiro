@@ -1,5 +1,6 @@
 "use client";
 
+import { useMoeda } from "@/lib/moeda";
 import { useEffect, useMemo, useState } from "react";
 import { Grafico, porcento, reais, reaisCurto } from "@/componentes/Grafico";
 import { formatarMoeda, formatarValor, nomeFonte } from "@/lib/formato";
@@ -25,9 +26,10 @@ const LINHAS: { aba: "resultado" | "balanco"; chave: string; nome: string; tipo:
   { aba: "balanco", chave: "dl_ebitda", nome: "Dív. líquida/EBITDA", tipo: "x" },
 ];
 
-const fmt = (v: number | null, tipo: string) => (v === null ? "—" : tipo === "R$" ? formatarMoeda(v) : formatarValor(v, tipo));
 
 export function SecaoHistorico({ ticker }: { ticker: string }) {
+  const { fv, fm, simbolo } = useMoeda();
+  const fmt = (v: number | null, tipo: string) => (v === null ? "—" : tipo === "R$" ? fm(v) : fv(v, tipo));
   const [dados, setDados] = useState<Resposta | null>(null);
   const [aba, setAba] = useState<"resultado" | "balanco" | "lucro_cotacao">("resultado");
   const [anos, setAnos] = useState(5);
@@ -44,10 +46,10 @@ export function SecaoHistorico({ ticker }: { ticker: string }) {
       return {
         grid: { left: 60, right: 52, top: 28, bottom: 28 }, legend: { top: 0 }, tooltip: { trigger: "axis" }, xAxis: eixoX,
         yAxis: [{ type: "value", axisLabel: { formatter: reaisCurto } },
-          { type: "value", axisLabel: { formatter: (v: number) => `R$ ${v.toLocaleString("pt-BR")}` }, splitLine: { show: false } }],
+          { type: "value", axisLabel: { formatter: (v: number) => `${simbolo} ${v.toLocaleString("pt-BR")}` }, splitLine: { show: false } }],
         series: [
-          { name: "Lucro líquido", type: "bar", data: serie.map((a) => a.lucro_liquido), tooltip: { valueFormatter: (v: unknown) => formatarMoeda(Number(v)) } },
-          { name: "Cotação no fim do ano", type: "line", yAxisIndex: 1, data: serie.map((a) => a.cotacao_fim_ano), tooltip: { valueFormatter: reais } },
+          { name: "Lucro líquido", type: "bar", data: serie.map((a) => a.lucro_liquido), tooltip: { valueFormatter: (v: unknown) => fm(Number(v)) } },
+          { name: "Cotação no fim do ano", type: "line", yAxisIndex: 1, data: serie.map((a) => a.cotacao_fim_ano), tooltip: { valueFormatter: (v: unknown) => fv(Number(v), "R$/ação") } },
         ],
       };
     const barras = aba === "resultado" ? ["receita_liquida", "lucro_liquido"] : ["patrimonio_liquido", "divida_liquida"];
@@ -58,7 +60,7 @@ export function SecaoHistorico({ ticker }: { ticker: string }) {
       yAxis: [{ type: "value", axisLabel: { formatter: reaisCurto } },
         { type: "value", axisLabel: { formatter: aba === "resultado" ? porcento : (v: number) => v.toLocaleString("pt-BR") }, splitLine: { show: false } }],
       series: [
-        ...barras.map((c) => ({ name: nome(c), type: "bar", data: serie.map((a) => a[c]), tooltip: { valueFormatter: (v: unknown) => formatarMoeda(Number(v)) } })),
+        ...barras.map((c) => ({ name: nome(c), type: "bar", data: serie.map((a) => a[c]), tooltip: { valueFormatter: (v: unknown) => fm(Number(v)) } })),
         { name: nome(linha), type: "line", yAxisIndex: 1, data: serie.map((a) => a[linha]),
           tooltip: { valueFormatter: aba === "resultado" ? porcento : (v: unknown) => Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 2 }) } },
       ],
@@ -103,7 +105,7 @@ export function SecaoHistorico({ ticker }: { ticker: string }) {
       )}
       <p className="suave text-xs">
         {dados.observacao} Fonte: {nomeFonte(ultimo.fonte)}{ultimo.consolidado ? " (consolidado)" : " (individual)"}.
-        {aba === "balanco" && dados.cagr_patrimonio !== null && ` Crescimento anual do patrimônio (CAGR): ${formatarValor(dados.cagr_patrimonio, "%")}.`}
+        {aba === "balanco" && dados.cagr_patrimonio !== null && ` Crescimento anual do patrimônio (CAGR): ${fv(dados.cagr_patrimonio, "%")}.`}
       </p>
     </div>
   );

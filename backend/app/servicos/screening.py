@@ -46,6 +46,7 @@ class FiltrosScreening:
     yield_bazin: float = bazin.YIELD_MINIMO
     fator_graham: float = graham.FATOR_GRAHAM
     fator_lynch: float = 1.0
+    mercado: str = "B3"  # B3 (R$) ou EUA (US$, ações e REITs)
 
 
 def _dentro(valor: float | None, faixa: tuple[float | None, float | None]) -> bool:
@@ -71,7 +72,8 @@ def _linha(u: dict, f: FiltrosScreening) -> dict:
     lucro_atual = insumos[-1].get("valor") if insumos else None
     lj = lynch.preco_justo(u["basico.lpa"], u["basico.cagr_lucro_5a"], lucro_base, lucro_atual, fator=f.fator_lynch)
     return {
-        "ticker": u["ticker"], "nome": u["nome"], "setor": u["setor"], "besst": setor_besst(u["setor"]),
+        "ticker": u["ticker"], "nome": u["nome"], "setor": u["setor"], "classe": u.get("classe"),
+        "besst": setor_besst(u["setor"]),
         "preco": preco, "data_preco": u["data_preco"],
         **{nome: u[metrica] for nome, metrica in FAIXAS.items()},
         "valor_mercado": u["basico.valor_mercado"],
@@ -89,7 +91,7 @@ def _linha(u: dict, f: FiltrosScreening) -> dict:
 def screening_acoes(sessao: Session, f: FiltrosScreening = FiltrosScreening()) -> dict:
     if f.ordenar_por not in ORDENACOES:
         raise ValueError(f"ordenação desconhecida: {f.ordenar_por}")
-    universo = _universo(sessao)
+    universo = _universo(sessao, f.mercado)
     setores = sorted({u["setor"] for u in universo if u["setor"]})
     sem_cotacao = sum(1 for u in universo if u["preco"] is None)
     linhas = []
@@ -126,6 +128,7 @@ def screening_acoes(sessao: Session, f: FiltrosScreening = FiltrosScreening()) -
 
     return {
         "aviso": AVISO_NAO_RECOMENDACAO,
+        "mercado": f.mercado, "moeda": "USD" if f.mercado == "EUA" else "BRL",
         "ordenar_por": f.ordenar_por,
         "parametros": {"yield_bazin": f.yield_bazin, "fator_graham": f.fator_graham, "fator_lynch": f.fator_lynch},
         "atualizado_em": max((lin["data_preco"] for lin in linhas), default=None),

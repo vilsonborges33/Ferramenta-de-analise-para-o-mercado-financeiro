@@ -26,10 +26,10 @@ const CHAVE_SALVOS = "screening.filtros-salvos";
 const AVISO =
   "Resultados calculados a partir de dados públicos e dos parâmetros escolhidos. Não constituem recomendação de investimento.";
 
-function celula(item: ItemScreening, id: keyof ItemScreening, unidade: string) {
+function celula(item: ItemScreening, id: keyof ItemScreening, unidade: string, moeda: string) {
   const v = item[id];
   if (unidade === "texto") return v ?? "—";
-  return formatarValor(typeof v === "number" ? v : null, unidade === "un" ? "un" : unidade);
+  return formatarValor(typeof v === "number" ? v : null, unidade === "un" ? "un" : unidade, moeda);
 }
 
 export default function RankingAcoes() {
@@ -51,6 +51,8 @@ export default function RankingAcoes() {
     setColunas((atual) => lerLocal(CHAVE_COLUNAS, atual));
     setSalvos(lerLocal(CHAVE_SALVOS, []));
     if (window.innerWidth < 640) setMostrarFiltros(false); // no celular, a tabela aparece primeiro
+    if (new URLSearchParams(window.location.search).get("mercado") === "EUA")
+      setEstado((e) => ({ ...e, mercado: "EUA" }));
     fetch("/api/favoritos")
       .then((r) => (r.ok ? r.json() : null))
       .then((lista: string[] | null) => setFavoritos(lista ? new Set(lista) : null))
@@ -87,6 +89,12 @@ export default function RankingAcoes() {
   const paginas = Math.max(1, Math.ceil(itens.length / porPagina));
   const trecho = itens.slice(pagina * porPagina, (pagina + 1) * porPagina);
   const metodo = METODOS.find((m) => m.id === estado.ordenarPor)!;
+  const eua = estado.mercado === "EUA";
+  const moeda = eua ? "USD" : "BRL";
+  const trocarMercado = (mercado: "B3" | "EUA") => {
+    setEstado({ ...filtrosPadrao(), ...estado, mercado, setores: [], besst: false });
+    setOrdem(null);
+  };
 
   const alternarColuna = (id: string) => {
     const novas = colunas.includes(id) ? colunas.filter((c) => c !== id) : [...colunas, id];
@@ -126,7 +134,14 @@ export default function RankingAcoes() {
     <div className="space-y-5">
       <div>
         <div className="suave text-xs">Ações › Ranking</div>
-        <h1 className="text-2xl font-semibold">Ranking de ações</h1>
+        <h1 className="text-2xl font-semibold">Ranking de ações{eua ? " dos EUA" : ""}</h1>
+        <div className="mt-2 flex gap-2 text-sm" role="tablist" aria-label="Mercado">
+          {(["B3", "EUA"] as const).map((m) => (
+            <button key={m} type="button" role="tab" aria-selected={estado.mercado === m} className="pilula" onClick={() => trocarMercado(m)}>
+              {m === "B3" ? "Brasil (B3)" : "EUA (US$)"}
+            </button>
+          ))}
+        </div>
         <p className="suave text-sm">
           Filtre por indicadores e compare o preço justo de cada livro lado a lado.
         </p>
@@ -171,11 +186,11 @@ export default function RankingAcoes() {
             onClick={() => setEstado({ ...estado, favoritos: !estado.favoritos })}>
             ★ Favoritos
           </button>
-          <button type="button" className="pilula" aria-pressed={estado.besst}
+          {!eua && <button type="button" className="pilula" aria-pressed={estado.besst}
             title="Setores perenes (Luiz Barsi): bancos, energia elétrica, saneamento, seguros e telecomunicações"
             onClick={() => setEstado({ ...estado, besst: !estado.besst })}>
             BESST
-          </button>
+          </button>}
           {favoritos === null && (
             <Link href="/entrar" className="link text-xs">Entre para usar favoritos</Link>
           )}
@@ -183,7 +198,7 @@ export default function RankingAcoes() {
 
         {mostrarFiltros && (
           <div className="mt-4 border-t pt-4">
-            <FiltrosScreening estado={estado} setores={dados?.setores ?? []} aoMudar={setEstado} />
+            <FiltrosScreening estado={estado} setores={dados?.setores ?? []} aoMudar={setEstado} moeda={moeda} />
           </div>
         )}
       </section>
@@ -259,7 +274,8 @@ export default function RankingAcoes() {
                   </td>
                   <td className="px-2 py-2 text-left suave">{i.posicao}</td>
                   <td className="px-3 py-2 text-left">
-                    <Link href={`/acoes/${i.ticker}`} className="link font-medium">{i.ticker}</Link>
+                    <Link href={`/${eua ? "eua" : "acoes"}/${i.ticker}`} className="link font-medium">{i.ticker}</Link>
+                    {i.classe === "REIT" && <span className="suave ml-1 text-xs">REIT</span>}
                     {i.lynch_aviso && <span title={i.lynch_aviso} className="ml-1" style={{ color: "var(--alerta)" }}>!</span>}
                     <div className="suave max-w-44 truncate text-xs">{i.nome}</div>
                   </td>
@@ -270,7 +286,7 @@ export default function RankingAcoes() {
                       <td key={c.id} title={c.id === "preco" ? `fechamento de ${formatarData(i.data_preco)}` : undefined}
                         className={`whitespace-nowrap px-3 py-2 ${c.metodo ? `metodo-${c.metodo} fundo-metodo` : ""} ${c.unidade === "texto" ? "max-w-48 truncate text-left" : ""}`}
                         style={margem ? { color: (v as number) >= 0 ? "var(--destaque)" : "var(--negativo)" } : undefined}>
-                        {celula(i, c.id, c.unidade)}
+                        {celula(i, c.id, c.unidade, moeda)}
                       </td>
                     );
                   })}

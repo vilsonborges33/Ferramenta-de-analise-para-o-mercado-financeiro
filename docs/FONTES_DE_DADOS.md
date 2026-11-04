@@ -92,6 +92,20 @@
   - ETFs não têm demonstrações us-gaap.
   - **FFO/AFFO** de REITs não têm tag padrão. O FFO será calculado pela definição Nareit (lucro líquido + depreciação/amortização de imóveis − ganhos na venda de imóveis + impairment de imóveis). O AFFO será rotulado como "estimado", ou ficará indisponível quando faltar insumo.
 - **Taxa de administração (expense ratio) de ETFs:** a melhor fonte gratuita estruturada parece ser o XBRL dos prospectos (Risk/Return Summary Data Sets) e dos relatórios aos cotistas (`ExpenseRatioPct`). A cobertura está a confirmar na Fase 7.
+- **Situação na Fase 7 (04/11/2026):**
+  - Integrada pelo `companyfacts` (fundamentos) e pelo `submissions` (nome e código SIC); o mapa ticker → CIK vem do `company_tickers.json`.
+  - User-Agent = `CONTATO_USER_AGENT` do `.env`. Sem um e-mail real, a ingestão para e avisa em Status.
+  - A taxa dos ETFs **não** é coletada: o usuário a informa na calculadora de custos (o XBRL dos prospectos não foi integrado).
+
+## 6.1 Tesouro dos EUA (Fase 7)
+
+- **Dados:** "Daily Treasury Par Yield Curve Rates", CSV por ano em home.treasury.gov. Usada só a coluna de 10 anos, como taxa livre de risco dos valuations em dólar.
+- **Termos:** dados públicos do governo dos EUA, sem chave.
+
+## 6.2 Cotações dos EUA (Fase 7)
+
+- **Decisão:** Yahoo Finance, o mesmo endpoint usado para a B3 (D-027), sem custo. O ticker vai sem sufixo (AAPL, O, SPY).
+- **Alternativas pagas** (EODHD, Tiingo) continuam possíveis se o Yahoo deixar de responder.
 
 ## 7. Cotações — EUA (alternativas)
 

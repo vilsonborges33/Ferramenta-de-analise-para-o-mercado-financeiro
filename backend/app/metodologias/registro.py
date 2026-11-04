@@ -94,8 +94,9 @@ METRICAS: tuple[Metrica, ...] = (
             "Valor de mercado ÷ (ativo circulante − passivo total)", GRAHAM, limitacoes=(LIMITACAO_FINANCEIRAS,)),
     Metrica("basico.dy", "Dividend yield (12 m)", "Valuation", "%",
             "Proventos líquidos por ação pagos nos últimos 12 meses ÷ cotação (JCP × (1 − IR))", GRAHAM,
-            aplica_a=("ACAO", "FII"), parametros=(_ALIQUOTA_JCP,),
+            aplica_a=("ACAO", "FII", "ETF"), parametros=(_ALIQUOTA_JCP,),
             limitacoes=("Depende da ingestão de proventos (plano pago da brapi).",
+                        "Ativos dos EUA: dividendo bruto, antes dos 30% retidos na fonte para residentes no Brasil.",
                         "JCP pelo valor líquido de IR na fonte; dividendos pelo valor declarado.",
                         "Janela pela data de pagamento: proventos anunciados e ainda não pagos não entram.",
                         "Com o Yahoo Finance como fonte: janela pela data-ex e valor bruto (o Yahoo não informa "
@@ -143,7 +144,7 @@ METRICAS: tuple[Metrica, ...] = (
             limitacoes=("Usa demonstrações anuais (DFP). Indisponível se algum extremo for ≤ 0.",)),
     # mercado
     Metrica("basico.liquidez_diaria", "Liquidez média diária (2 meses)", "Mercado", "R$",
-            "Média do volume financeiro dos pregões dos últimos 2 meses", GRAHAM, aplica_a=("ACAO", "FII"),
+            "Média do volume financeiro dos pregões dos últimos 2 meses", GRAHAM, aplica_a=("ACAO", "FII", "ETF"),
             limitacoes=("Com o Yahoo Finance como fonte, o volume financeiro é estimado como fechamento × "
                         "quantidade negociada.",)),
     # FII
@@ -162,6 +163,22 @@ METRICAS: tuple[Metrica, ...] = (
             "Soma dos percentuais mensais de dividend yield informados à CVM", GRAHAM, aplica_a=("FII",),
             limitacoes=("Percentual calculado pelo administrador; a base (cota patrimonial ou de mercado) "
                         "não é padronizada entre fundos. Não substitui o DY por proventos.",)),
+    # REITs (EUA)
+    Metrica("reit.ffo", "FFO (12 m)", "REIT", "R$", "Lucro líquido + depreciação e amortização − ganho na venda de "
+            "imóveis", DAMODARAN, aplica_a=("REIT",),
+            premissas=("Definição de FFO da NAREIT (associação dos REITs dos EUA), usada por Damodaran no "
+                       "valuation de empresas imobiliárias.",),
+            limitacoes=("Usa a depreciação e amortização total informada à SEC (a NAREIT considera só a "
+                        "imobiliária) e não soma baixas por impairment.",)),
+    Metrica("reit.ffo_acao", "FFO por ação", "REIT", "R$/ação", "FFO ÷ ações em circulação", DAMODARAN,
+            aplica_a=("REIT",)),
+    Metrica("reit.p_ffo", "P/FFO", "REIT", "x", "Valor de mercado ÷ FFO", DAMODARAN, aplica_a=("REIT",)),
+    Metrica("reit.affo", "AFFO (12 m, simplificado)", "REIT", "R$", "FFO − investimentos de manutenção "
+            "(PaymentsForCapitalImprovements)", DAMODARAN, aplica_a=("REIT",),
+            limitacoes=("Sem o ajuste de aluguéis lineares (straight-line rent); só quando o REIT informa os "
+                        "investimentos de manutenção separados.",)),
+    Metrica("reit.payout_ffo", "Dividendos ÷ FFO", "REIT", "%", "Dividendos pagos ÷ FFO", DAMODARAN,
+            aplica_a=("REIT",)),
     Metrica("fii.vacancia", "Vacância física", "Operacional", "%",
             "Σ(área × vacância) ÷ Σ área dos imóveis do informe trimestral (média simples se faltar a área)", GRAHAM,
             aplica_a=("FII",), limitacoes=("Informe trimestral: pode ter até 3 meses de defasagem.",

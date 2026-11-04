@@ -19,6 +19,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </Link>
             <Link href="/acoes">Ações</Link>
             <Link href="/fiis">FIIs</Link>
+            <Link href="/eua">EUA</Link>
             <Link href="/mais-baratas">Ranking ações</Link>
             <Link href="/fiis/ranking">Ranking FIIs</Link>
             <Link href="/valuations">Valuation</Link>
@@ -32,7 +33,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
         <footer className="mx-auto max-w-6xl px-4 pb-8 text-xs suave">
           Fontes: CVM — Dados Abertos (ODbL) para balanços e informes de FII; Yahoo Finance para cotações e
-          dividendos; Banco Central (SGS, ODbL) e Tesouro Transparente.
+          dividendos; Banco Central (SGS, ODbL) e Tesouro Transparente; EUA: SEC EDGAR e Tesouro dos EUA.
           Ferramenta de análise: os números são cálculos a partir de dados públicos e não constituem
           recomendação de investimento.
         </footer>

@@ -150,3 +150,14 @@ def test_paridade_de_risco_e_all_weather():
     assert sum(aw.detalhes["alvos"].values()) == pytest.approx(100_000)
     assert aw.detalhes["alvos"]["titulos_longos"] == pytest.approx(40_000)
     assert not dalio.alocacao_all_weather(100, {"acoes": 0.5}).disponivel
+
+
+def test_endpoint_impacto_custos():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    r = TestClient(app).get("/ferramentas/impacto-custos", params={"custo_anual": 0.01, "retorno_anual": 0.07,
+                                                                   "inicial": 1000, "anos": 10}).json()
+    # sem aportes: 1 − (1,07 × 0,99)^10 ÷ 1,07^10 = 1 − 0,99^10
+    assert r["impacto"] == pytest.approx(1 - 0.99 ** 10)
+    assert r["serie"][-1]["sem_custo"] == pytest.approx(1000 * 1.07 ** 10) and len(r["serie"]) == 11

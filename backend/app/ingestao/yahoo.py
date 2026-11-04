@@ -109,10 +109,11 @@ def gravar(ctx: Contexto, ativo_id: int, dados: dict) -> int:
     return len(linhas) + len(dados["dividendos"])
 
 
-def _consultar(cliente, ticker: str, intervalo: str, tentativas: int = 3, espera: float = 2.0):
+def _consultar(cliente, ticker: str, intervalo: str, tentativas: int = 3, espera: float = 2.0, mercado: str = "B3"):
     params = {"range": intervalo, "interval": "1d", "events": "div", "includeAdjustedClose": "true"}
+    alvo = ticker.upper() if mercado == "US" else simbolo(ticker)  # EUA: o ticker já é o símbolo do Yahoo
     for tentativa in range(1, tentativas + 1):
-        resposta = cliente.get(URL.format(simbolo=simbolo(ticker)), params=params, headers=CABECALHOS)
+        resposta = cliente.get(URL.format(simbolo=alvo), params=params, headers=CABECALHOS)
         if resposta.status_code == 429 and tentativa < tentativas:  # limite de requisições: espera e tenta de novo
             time.sleep(espera * tentativa)
             continue
@@ -121,6 +122,7 @@ def _consultar(cliente, ticker: str, intervalo: str, tentativas: int = 3, espera
 
 
 BLOCO_GRAVACAO = 25
+CLASSES = ("ACAO", "UNIT", "FII", "STOCK", "REIT", "ETF")  # B3 e EUA (Fase 7)
 MAXIMO_FALHAS_SEGUIDAS = 25
 
 
@@ -130,10 +132,10 @@ def ingerir(sessao, tickers: list[str] | None = None, intervalo: str = "5d", cli
 
     `intervalo`: "5d" na atualização diária, "6y" na carga inicial.
     """
-    consulta = select(Ativo).where(Ativo.ativo.is_(True), Ativo.classe.in_(("ACAO", "UNIT", "FII")))
+    consulta = select(Ativo).where(Ativo.ativo.is_(True), Ativo.classe.in_(CLASSES))
     if tickers:
         consulta = consulta.where(Ativo.ticker.in_([t.upper() for t in tickers]))
-    ativos = [(a.id, a.ticker, a.classe) for a in sessao.scalars(consulta)]
+    ativos = [(a.id, a.ticker, a.classe, a.mercado) for a in sessao.scalars(consulta)]
     proprio = cliente is None
     cliente = cliente or cliente_http()
     total, falhas, sem_dados = 0, [], []
@@ -141,11 +143,11 @@ def ingerir(sessao, tickers: list[str] | None = None, intervalo: str = "5d", cli
     interrompido = False
     try:
         with lote(sessao, "YAHOO_FINANCE", URL.format(simbolo="*")) as ctx:
-            for i, (ativo_id, ticker, classe) in enumerate(ativos):
+            for i, (ativo_id, ticker, classe, mercado) in enumerate(ativos):
                 if i and pausa:
                     time.sleep(pausa)
                 try:
-                    resposta = _consultar(cliente, ticker, intervalo)
+                    resposta = _consultar(cliente, ticker, intervalo, mercado=mercado)
                     if resposta.status_code == 404:
                         sem_dados.append(ticker)
                         seguidas = 0

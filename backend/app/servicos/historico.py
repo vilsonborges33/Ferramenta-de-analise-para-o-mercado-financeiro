@@ -75,14 +75,19 @@ def historico_anual(sessao: Session, ticker: str, anos: int = 10) -> dict | None
         cagr_pl = _v(ib.cagr(linhas[0]["patrimonio_liquido"], linhas[-1]["patrimonio_liquido"],
                              linhas[-1]["ano"] - linhas[0]["ano"]))
     return {"ticker": ativo.ticker, "anos": linhas, "cagr_patrimonio": cagr_pl,
-            "observacao": "Valores em reais, demonstrações anuais (DFP) padronizadas. Cotação: último fechamento "
-                          "até o fim do exercício."}
+            "observacao": ("Valores em dólares, relatórios anuais (10-K) da SEC padronizados." if ativo.mercado == "US"
+                           else "Valores em reais, demonstrações anuais (DFP) padronizadas.")
+                          + " Cotação: último fechamento até o fim do exercício."}
 
 
 def _codigos_fonte_proventos(classe: str) -> list[str]:
     if obter_configuracao().fonte_mercado == "yahoo":
         return ["YAHOO_FINANCE"]
     return ["FNET_RENDIMENTOS" if classe == "FII" else "B3_PROVENTOS", "BRAPI"]
+
+
+CRITERIO_EUA = ("Dividendos brutos em dólares, somados pela data-ex (o Yahoo não informa o pagamento). Para "
+                "residentes no Brasil, os EUA retêm 30% na fonte.")
 
 
 def dividendos(sessao: Session, ticker: str, anos: int = 10) -> dict | None:
@@ -125,9 +130,10 @@ def dividendos(sessao: Session, ticker: str, anos: int = 10) -> dict | None:
         "ticker": ativo.ticker, "fontes": codigos, "pagamentos": pagamentos, "anos": anuais,
         "dy_medio": sum(yields) / len(yields) if yields else None,
         "dy_minimo": min(yields) if yields else None, "dy_maximo": max(yields) if yields else None,
-        "criterio": "Valores líquidos (JCP com 15% de IR), somados pela data de pagamento (ou data-ex quando a fonte "
-                    "não informa o pagamento). DY do ano = total do ano ÷ último fechamento do ano. O ano corrente "
-                    "é parcial.",
+        "criterio": (CRITERIO_EUA if ativo.mercado == "US" else
+                     "Valores líquidos (JCP com 15% de IR), somados pela data de pagamento (ou data-ex quando a fonte "
+                     "não informa o pagamento).") + " DY do ano = total do ano ÷ último fechamento do ano. O ano "
+                    "corrente é parcial.",
     }
 
 

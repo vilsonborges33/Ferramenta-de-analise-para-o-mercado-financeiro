@@ -28,6 +28,7 @@ COLUNAS_EXPORTACAO = [
     Coluna("greenblatt_posicao", "Greenblatt: posição", "numero"),
 ]
 FONTES_EXPORTACAO = "CVM (balanços, ODbL) e Yahoo Finance (cotações e dividendos)"
+FONTES_EXPORTACAO_EUA = "SEC EDGAR (balanços XBRL) e Yahoo Finance (cotações e dividendos); valores em US$"
 
 
 def _favoritos(sessao: Session, usuario_id: int) -> set[str]:
@@ -44,11 +45,14 @@ def _filtros(
     yield_bazin: float = Query(0.06, gt=0, le=0.5),
     fator_graham: float = Query(22.5, gt=0, le=100),
     fator_lynch: float = Query(1.0, gt=0, le=5),
+    mercado: str = "B3",
     sessao: Session = Depends(obter_sessao),
     sessao_cookie: str | None = Cookie(default=None, alias=NOME_COOKIE),
 ) -> FiltrosScreening:
     if ordenar_por not in ORDENACOES:
         raise HTTPException(422, f"ordenar_por deve ser um de {', '.join(ORDENACOES)}")
+    if mercado not in ("B3", "EUA"):
+        raise HTTPException(422, "mercado deve ser B3 ou EUA")
     faixas = {}
     for nome in FAIXAS:  # ex.: dy_min=0.06&p_l_max=12
         limites = []
@@ -68,7 +72,7 @@ def _filtros(
         tickers = frozenset(_favoritos(sessao, usuario.id))
     return FiltrosScreening(faixas=faixas, setores=tuple(setores), besst=besst, tickers=tickers,
                             ordenar_por=ordenar_por, yield_bazin=yield_bazin, fator_graham=fator_graham,
-                            fator_lynch=fator_lynch)
+                            fator_lynch=fator_lynch, mercado=mercado)
 
 
 @rotas.get("/screening/acoes")
@@ -82,13 +86,15 @@ def exportar(formato: str = "xlsx", filtros: FiltrosScreening = Depends(_filtros
     if formato not in ("xlsx", "csv"):
         raise HTTPException(422, "formato deve ser xlsx ou csv")
     r = screening_acoes(sessao, filtros)
-    args = (r["itens"], COLUNAS_EXPORTACAO, r["aviso"], FONTES_EXPORTACAO, r["atualizado_em"])
+    fontes = FONTES_EXPORTACAO_EUA if r["mercado"] == "EUA" else FONTES_EXPORTACAO
+    args = (r["itens"], COLUNAS_EXPORTACAO, r["aviso"], fontes, r["atualizado_em"])
     if formato == "csv":
         conteudo, tipo = para_csv(*args), "text/csv; charset=utf-8"
     else:
-        conteudo = para_xlsx(*args, titulo="Screening de ações")
+        conteudo = para_xlsx(*args, titulo="Screening de ações", moeda=r["moeda"])
         tipo = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    nome = f"screening-acoes-{r['atualizado_em'] or 'sem-data'}.{formato}"
+    prefixo = "screening-eua" if r["mercado"] == "EUA" else "screening-acoes"
+    nome = f"{prefixo}-{r['atualizado_em'] or 'sem-data'}.{formato}"
     return Response(conteudo, media_type=tipo, headers={"Content-Disposition": f'attachment; filename="{nome}"'})
 
 
@@ -119,8 +125,10 @@ def desfavoritar(ticker: str, usuario: Usuario = Depends(usuario_atual), sessao:
 def valuation(ticker: str, filtros: FiltrosScreening = Depends(_filtros), sessao: Session = Depends(obter_sessao)):
     """Graham, Bazin, Lynch e Greenblatt de uma ação com os parâmetros escolhidos na página do ativo.
     A posição na Fórmula Mágica é entre todas as ações com cotação."""
+    classe = sessao.scalar(select(Ativo.classe).where(Ativo.ticker == ticker.upper()))
     r = screening_acoes(sessao, FiltrosScreening(yield_bazin=filtros.yield_bazin, fator_graham=filtros.fator_graham,
-                                                 fator_lynch=filtros.fator_lynch))
+                                                 fator_lynch=filtros.fator_lynch,
+                                                 mercado="EUA" if classe in ("STOCK", "REIT") else "B3"))
     item = next((i for i in r["itens"] if i["ticker"] == ticker.upper()), None)
     if item is None:
         raise HTTPException(404, "ação sem cotação ou não encontrada")
