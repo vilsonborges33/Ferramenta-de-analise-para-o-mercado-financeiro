@@ -5,6 +5,7 @@ usam as funções puras de `app/metodologias`. Cada série informa a fonte e a d
 """
 
 from bisect import bisect_right
+from collections import defaultdict
 from datetime import date, timedelta
 
 from sqlalchemy import func, select
@@ -13,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.config import obter_configuracao
 from app.db.modelos import Ativo, CotacaoDiaria, DemonstracaoPadronizada, Fonte, Provento, SerieEconomica
 from app.metodologias import indicadores_basicos as ib
-from app.metodologias import portfolio
+from app.metodologias import portfolio, siegel
 from app.metodologias.registro import POR_ID
 
 
@@ -137,13 +138,42 @@ def dividendos(sessao: Session, ticker: str, anos: int = 10) -> dict | None:
     }
 
 
+def serie_retorno_total(sessao: Session, ativo: Ativo, desde: date,
+                        ate: date | None = None) -> list[tuple[date, float]]:
+    """Índice de retorno total diário (base 1): I_t = I_{t−1} × (P_t + D_t) ÷ P_{t−1} (siegel.retorno_total).
+
+    D_t = proventos com data-ex no pregão (sem pregão na data-ex, vai para o seguinte). Os fechamentos do
+    Yahoo já vêm ajustados por desdobramentos e grupamentos; picos isolados de cotação errada saem antes.
+    """
+    cot = [(d, p) for d, p in _cotacoes(sessao, ativo.id) if d >= desde and (ate is None or d <= ate) and p > 0]
+    cot = [cot[i] for i in portfolio.indices_sem_picos([p for _, p in cot])]
+    if len(cot) < 2:
+        return []
+    codigos = _codigos_fonte_proventos(ativo.classe)
+    ids = [f.id for f in sessao.scalars(select(Fonte).where(Fonte.codigo.in_(codigos)))]
+    proventos: dict[date, float] = defaultdict(float)
+    for p in sessao.scalars(select(Provento).where(Provento.ativo_id == ativo.id, Provento.fonte_id.in_(ids),
+                                                   Provento.data_com >= desde)):
+        proventos[p.data_ex or p.data_com] += float(p.valor_por_cota)
+    dias = [d for d, _ in cot]
+    posicao = {d: i for i, d in enumerate(dias)}
+    por_pregao: dict[date, float] = defaultdict(float)
+    for d, v in proventos.items():
+        i = posicao.get(d, bisect_right(dias, d))
+        if 0 < i < len(dias):
+            por_pregao[dias[i]] += v
+    r = siegel.indice_retorno_total([p for _, p in cot], [por_pregao.get(d, 0.0) for d in dias], base=1.0)
+    return list(zip(dias, r.detalhes["serie"], strict=True)) if r.disponivel else []
+
+
 def risco(sessao: Session, ticker: str, hoje: date | None = None) -> dict | None:
+    """Retorno, volatilidade e Sharpe de 12 meses sobre o retorno total (cotação + proventos reinvestidos)."""
     ativo = _ativo(sessao, ticker)
     if ativo is None:
         return None
     hoje = hoje or date.today()
     inicio = hoje - timedelta(days=365)
-    precos = [f for d, f in _cotacoes(sessao, ativo.id) if d > inicio]
+    precos = [v for _, v in serie_retorno_total(sessao, ativo, inicio + timedelta(days=1), hoje)]
     vol = portfolio.volatilidade_anualizada(precos)
     retorno = precos[-1] / precos[0] - 1 if len(precos) >= 21 else None
     cdi = portfolio.taxa_acumulada([float(v) for v in sessao.scalars(

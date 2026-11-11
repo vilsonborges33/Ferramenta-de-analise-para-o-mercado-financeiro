@@ -39,7 +39,7 @@ def _ultimas_cotacoes(sessao: Session) -> dict[int, tuple[float, str]]:
     return {a: (float(f), d.isoformat()) for a, f, d in sessao.execute(consulta)}
 
 
-CLASSES_POR_MERCADO = {"B3": ("ACAO",), "EUA": ("STOCK", "REIT")}
+CLASSES_POR_MERCADO = {"B3": ("ACAO", "UNIT"), "EUA": ("STOCK", "REIT")}
 
 
 def _universo(sessao: Session, mercado: str = "B3") -> list[dict]:

@@ -46,14 +46,14 @@ def test_pagina_do_fundo(cliente):
     grupos = {g["grupo"]: g["percentual"] for g in r["composicao"]["grupos"]}
     assert grupos == pytest.approx({"Imóveis": 0.75, "Caixa e renda fixa": 1 / 6, "CRI e CRA": 1 / 12})
     assert r["tipo"] == "Tijolo" and r["composicao"]["cobertura"] == pytest.approx(1.0)
-    assert r["endividamento"]["alavancagem"] == pytest.approx(16 / 120)
+    assert r["endividamento"]["alavancagem"] == pytest.approx(15 / 120)  # sem os rendimentos a distribuir
     obrigacoes = {o["grupo"] for o in r["endividamento"]["obrigacoes"]}
     assert obrigacoes == {"Aquisição de imóveis", "Rendimentos a distribuir"}
     assert [i["nome"] for i in r["imoveis"]] and r["competencia_imoveis"] == "2024-09-30"
     assert len(r["historico"]) == 12 and r["historico"][-1]["cotistas"] == 5012
     ind = {n["metrica"]: n for g in cliente.get("/fiis/HGLG11").json()["grupos"].values() for n in g}
     assert ind["fii.vacancia"]["valor"] == pytest.approx(0.025)  # (1000 × 10%) ÷ 4000 m²
-    assert ind["fii.alavancagem"]["valor"] == pytest.approx(16 / 120)
+    assert ind["fii.alavancagem"]["valor"] == pytest.approx(15 / 120)
     assert cliente.get("/fiis/XXXX11/fundo").status_code == 404
 
 

@@ -49,12 +49,17 @@ class FiltrosScreening:
     mercado: str = "B3"  # B3 (R$) ou EUA (US$, ações e REITs)
 
 
-def _dentro(valor: float | None, faixa: tuple[float | None, float | None]) -> bool:
+# Em bancos e seguradoras a dívida líquida/EBITDA e a margem líquida não se aplicam (não há EBITDA nem receita
+# no sentido de empresa comum): o filtro dessas colunas não reprova o ativo, como na Ward.
+NAO_SE_APLICA_FINANCEIRAS = ("dl_ebitda", "margem_liquida")
+
+
+def _dentro(valor: float | None, faixa: tuple[float | None, float | None], nao_se_aplica: bool = False) -> bool:
     minimo, maximo = faixa
     if minimo is None and maximo is None:
         return True
     if valor is None:
-        return False
+        return nao_se_aplica
     return (minimo is None or valor >= minimo) and (maximo is None or valor <= maximo)
 
 
@@ -104,7 +109,9 @@ def screening_acoes(sessao: Session, f: FiltrosScreening = FiltrosScreening()) -
             continue
         if f.besst and not setor_besst(u["setor"]):
             continue
-        if not all(_dentro(u[FAIXAS[nome]], faixa) for nome, faixa in f.faixas.items()):
+        financeira = u["tipo_plano_contas"] != "geral"
+        if not all(_dentro(u[FAIXAS[nome]], faixa, financeira and nome in NAO_SE_APLICA_FINANCEIRAS)
+                   for nome, faixa in f.faixas.items()):
             continue
         linhas.append(_linha(u, f))
 

@@ -169,7 +169,7 @@ export function BuscaRapida() {
                 style={{ background: i === indice ? "var(--superficie-2)" : undefined }}>
                 <span className="ticker w-16 font-semibold">{a.ticker}</span>
                 <span className="flex-1 truncate suave">{a.nome}</span>
-                <span className="rotulo">{a.classe === "ACAO" ? "Ação" : a.classe}</span>
+                <span className="rotulo">{a.classe === "ACAO" ? "Ação" : a.classe === "UNIT" ? "Unit" : a.classe}</span>
               </button>
             </li>
           ))}

@@ -148,7 +148,8 @@ def _multiplos_setor(sessao: Session, setor: str | None, empresa_id: int,
     linhas = sessao.execute(
         select(Ativo.empresa_id, IndicadorCalculado.metrica, IndicadorCalculado.valor)
         .join(IndicadorCalculado, IndicadorCalculado.ativo_id == Ativo.id)
-        .where(Ativo.ativo.is_(True), Ativo.classe.in_(("STOCK", "REIT") if classe in ("STOCK", "REIT") else ("ACAO",)),
+        .where(Ativo.ativo.is_(True),
+               Ativo.classe.in_(("STOCK", "REIT") if classe in ("STOCK", "REIT") else ("ACAO", "UNIT")),
                Ativo.empresa_id != empresa_id,
                Ativo.empresa.has(setor=setor), IndicadorCalculado.metrica.in_(list(saida)),
                IndicadorCalculado.valor.is_not(None)))

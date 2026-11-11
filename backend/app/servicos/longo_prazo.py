@@ -9,16 +9,14 @@ em ações/FIIs com dividendos reinvestidos, no CDI e no dólar; e o CAPE de cad
   médio sem depender de mudanças na quantidade de ações).
 """
 
-from bisect import bisect_right
-from collections import defaultdict
 from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.modelos import Ativo, DemonstracaoPadronizada, Fonte, IndicadorCalculado, Provento, SerieEconomica
+from app.db.modelos import Ativo, DemonstracaoPadronizada, IndicadorCalculado, SerieEconomica
 from app.metodologias import siegel
-from app.servicos.historico import _codigos_fonte_proventos, _cotacoes
+from app.servicos.historico import serie_retorno_total
 
 LIMITE_ATIVOS = 4
 
@@ -58,29 +56,6 @@ def _ipca_mensal(sessao: Session, desde: date) -> dict[str, float]:
     return saida
 
 
-def _retorno_total_diario(sessao: Session, ativo: Ativo, desde: date) -> list[tuple[date, float]]:
-    cot = [(d, p) for d, p in _cotacoes(sessao, ativo.id) if d >= desde and p > 0]
-    if len(cot) < 2:
-        return []
-    codigos = _codigos_fonte_proventos(ativo.classe)
-    ids = [f.id for f in sessao.scalars(select(Fonte).where(Fonte.codigo.in_(codigos)))]
-    proventos: dict[date, float] = defaultdict(float)
-    for p in sessao.scalars(select(Provento).where(Provento.ativo_id == ativo.id, Provento.fonte_id.in_(ids),
-                                                   Provento.data_com >= desde)):
-        proventos[p.data_ex or p.data_com] += float(p.valor_por_cota)
-    dias = [d for d, _ in cot]
-    posicao = {d: i for i, d in enumerate(dias)}
-    por_pregao: dict[date, float] = defaultdict(float)
-    for d, v in proventos.items():  # provento com data-ex sem pregão vai para o pregão seguinte
-        i = posicao.get(d, bisect_right(dias, d))
-        if 0 < i < len(dias):
-            por_pregao[dias[i]] += v
-    precos = [p for _, p in cot]
-    divs = [por_pregao.get(d, 0.0) for d in dias]
-    r = siegel.indice_retorno_total(precos, divs, base=1.0)
-    return list(zip(dias, r.detalhes["serie"], strict=True)) if r.disponivel else []
-
-
 def _cape(sessao: Session, ativo: Ativo, ipca: dict[str, float], anos: int) -> dict:
     if ativo.empresa_id is None or ativo.classe == "FII":
         return {"valor": None, "motivo_indisponivel": "CAPE só se aplica a ações (lucro da empresa)"}
@@ -117,7 +92,7 @@ def longo_prazo(sessao: Session, tickers: list[str], desde: date, anos_cape: int
         if ativo is None or ativo.mercado != "B3":
             continue
         classes[ativo.ticker] = ativo.classe
-        diario = _retorno_total_diario(sessao, ativo, desde)
+        diario = serie_retorno_total(sessao, ativo, desde)
         if diario:
             candidatos.append((ativo.ticker, "ativo", _fim_de_mes(diario), "Yahoo Finance (cotações e proventos)"))
         capes[ativo.ticker] = _cape(sessao, ativo, ipca, anos_cape)

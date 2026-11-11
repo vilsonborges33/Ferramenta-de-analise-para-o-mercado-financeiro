@@ -46,6 +46,14 @@ def test_alavancagem_vacancia_e_retornos():
     from app.metodologias import fii as m
     assert m.alavancagem(128, 1000).valor == pytest.approx(0.128)
     assert not m.alavancagem(1, 0).disponivel
+    # HGLG11 em 09/2026 (informe CVM): R$ 1.289,6 mi de passivo, dos quais R$ 53,4 mi de rendimentos a
+    # distribuir e R$ 3,4 mi de taxas; R$ 8.835,7 mi de ativo → 13,95%, como na Ward.
+    extras = {"Rendimentos_Distribuir": "53364083.37", "Taxa_Administracao_Pagar": "3367664.80",
+              "Obrigacoes_Securitizacao_Recebiveis": "658265359.42"}
+    assert m.passivo_nao_oneroso(extras) == pytest.approx(56731748.17)
+    assert m.alavancagem(1289637537.45, 8835655334.84, m.passivo_nao_oneroso(extras)).valor == pytest.approx(
+        0.1395, abs=5e-5)
+    assert m.passivo_nao_oneroso(None) == 0
     v = m.vacancia_ponderada([(1000, 0.10), (3000, 0.0), (None, 0.5)])
     assert v.valor == pytest.approx(0.025) and v.detalhes["ponderada"]
     assert m.vacancia_ponderada([(None, 0.1), (None, 0.3)]).valor == pytest.approx(0.2)

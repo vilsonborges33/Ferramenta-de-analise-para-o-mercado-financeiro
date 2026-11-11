@@ -7,6 +7,7 @@ Arquivos (Dados Abertos CVM, ODbL):
 """
 
 import io
+import logging
 import re
 import zipfile
 from datetime import date
@@ -18,6 +19,8 @@ from sqlalchemy.dialects.postgresql import insert
 
 from app.db.modelos import Ativo, Empresa
 from app.ingestao.base import Contexto, baixar, data_br, exigir_colunas, lote
+
+log = logging.getLogger(__name__)
 
 URL_CADASTRO = "https://dados.cvm.gov.br/dados/CIA_ABERTA/CAD/DADOS/cad_cia_aberta.csv"
 URL_FCA = "https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/FCA/DADOS/fca_cia_aberta_{ano}.zip"
@@ -74,8 +77,9 @@ def especie_por_ticker(ticker: str, valor_mobiliario: str) -> tuple[str, str]:
     return "ACAO", "ON" if "Ordin" in valor_mobiliario else "PN"
 
 
-# Ticker de ação/unit/BDR na B3: 4 letras + 1 ou 2 dígitos (ex.: PETR4, TAEE11, AAPL34).
-PADRAO_TICKER_B3 = re.compile(r"^[A-Z]{4}\d{1,2}$")
+# Ticker de ação/unit/BDR na B3: raiz de 4 caracteres começando por letra + 1 ou 2 dígitos (ex.: PETR4, TAEE11,
+# AAPL34; a raiz pode ter dígito, como B3SA3).
+PADRAO_TICKER_B3 = re.compile(r"^[A-Z][A-Z0-9]{3}\d{1,2}$")
 
 
 def ticker_valido(ticker: str) -> bool:
@@ -149,11 +153,25 @@ def ingerir_cadastro(sessao) -> int:
         return gravar_cadastro(ctx, parse_cadastro(ler_csv_cvm(caminho)))
 
 
+def _registros_fca(ano: int) -> tuple[list[dict], str]:
+    url = URL_FCA.format(ano=ano)
+    caminho, hash_arquivo = baixar(url, "CVM_FCA")
+    z = zipfile.ZipFile(caminho)
+    df = ler_csv_cvm(io.BytesIO(z.read(f"fca_cia_aberta_valor_mobiliario_{ano}.csv")))
+    return parse_valores_mobiliarios(df), hash_arquivo
+
+
 def ingerir_valores_mobiliarios(sessao, ano: int) -> int:
+    """FCA do ano; empresas que ainda não entregaram o deste ano (ex.: CSN Mineração em 11/2026) vêm do FCA do
+    ano anterior, para não ficarem sem ticker."""
     url = URL_FCA.format(ano=ano)
     with lote(sessao, "CVM_FCA", url) as ctx:
-        caminho, ctx.lote.hash_arquivo = baixar(url, "CVM_FCA")
-        z = zipfile.ZipFile(caminho)
-        nome = f"fca_cia_aberta_valor_mobiliario_{ano}.csv"
-        df = ler_csv_cvm(io.BytesIO(z.read(nome)))
-        return gravar_valores_mobiliarios(ctx, parse_valores_mobiliarios(df))
+        registros, ctx.lote.hash_arquivo = _registros_fca(ano)
+        try:
+            anteriores, _ = _registros_fca(ano - 1)
+        except Exception:  # noqa: BLE001 — o ano anterior é complemento; sem ele, segue o do ano
+            log.warning("FCA %s indisponível; seguindo só com o de %s", ano - 1, ano)
+            anteriores = []
+        presentes = {r["cnpj"] for r in registros}
+        registros += [r for r in anteriores if r["cnpj"] not in presentes]
+        return gravar_valores_mobiliarios(ctx, registros)

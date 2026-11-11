@@ -39,6 +39,22 @@ def volatilidade_carteira(pesos: Sequence[float], cov: np.ndarray) -> float:
     return float(np.sqrt(w @ np.asarray(cov) @ w))
 
 
+def indices_sem_picos(precos: Sequence[float], janela: int = 5, limite: float = 2.0) -> list[int]:
+    """Posições dos preços que ficam, descartando picos isolados de cotação errada da fonte.
+
+    Um ponto é pico quando difere mais de `limite` vezes (para cima ou para baixo) da mediana dos `janela`
+    pregões de cada lado, incluindo ele. Um pico de até `janela` dias some; um desdobramento ou grupamento
+    não, porque depois dele a mediana acompanha o novo patamar.
+    """
+    p = np.asarray(precos, dtype=float)
+    ficam = []
+    for i in range(len(p)):
+        mediana = float(np.median(p[max(0, i - janela):i + janela + 1]))
+        if mediana > 0 and 1 / limite <= p[i] / mediana <= limite:
+            ficam.append(i)
+    return ficam
+
+
 def volatilidade_anualizada(precos: Sequence[float], periodos_ano: int = PERIODOS_ANO) -> Resultado:
     """Desvio-padrão dos retornos diários × √252. Exige ao menos 20 pregões."""
     if len(precos) < 21:

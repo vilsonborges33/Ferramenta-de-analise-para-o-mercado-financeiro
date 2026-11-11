@@ -184,8 +184,9 @@ METRICAS: tuple[Metrica, ...] = (
             aplica_a=("FII",), limitacoes=("Informe trimestral: pode ter até 3 meses de defasagem.",
                                            "Só fundos com imóveis; fundos de papel não têm vacância.")),
     Metrica("fii.alavancagem", "Alavancagem bruta", "Endividamento", "%",
-            "Passivo total ÷ ativo total (informe mensal CVM)", GRAHAM, aplica_a=("FII",),
-            limitacoes=("Inclui rendimentos a distribuir e obrigações por compra de imóveis, além de dívida.",)),
+            "(Passivo total − rendimentos a distribuir − taxas a pagar) ÷ ativo total (informe mensal CVM)", GRAHAM,
+            aplica_a=("FII",), versao="2",
+            limitacoes=("Inclui obrigações por compra de imóveis e CRI emitidos, além de empréstimos.",)),
 )
 
 

@@ -105,7 +105,8 @@ def detalhe_fundo(sessao: Session, ticker: str) -> dict | None:
         "endividamento": {
             "ativo_total": _f(ultimo.ativo_total) if ultimo else None,
             "passivo_total": _f(ultimo.total_passivo) if ultimo else None,
-            "alavancagem": mfii.alavancagem(_f(ultimo.total_passivo), _f(ultimo.ativo_total)).valor if ultimo else None,
+            "alavancagem": mfii.alavancagem(_f(ultimo.total_passivo), _f(ultimo.ativo_total),
+                                            mfii.passivo_nao_oneroso(extras)).valor if ultimo else None,
             "obrigacoes": mfii.obrigacoes(extras),
         },
         "imoveis": [{"nome": i.nome, "classe": i.classe, "endereco": i.endereco, "area_m2": _f(i.area_m2),

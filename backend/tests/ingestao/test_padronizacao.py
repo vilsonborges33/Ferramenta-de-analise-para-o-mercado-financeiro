@@ -147,6 +147,36 @@ def test_conta_duplicada_zerada_nao_esconde_a_que_tem_valor():
     assert [i["conta"] for i in p.insumos["lucro_liquido_controladores"]] == ["3.11.01"]
 
 
+def test_divisao_do_lucro_zerada_usa_o_consolidado():
+    """Caso real da Klabin (ITR 3T26): 3.11 com R$ 393,1 mi e 3.11.01/3.11.02 entregues zeradas."""
+    fim, ini = date(2023, 12, 31), date(2023, 1, 1)
+    linhas = [
+        linha("DFP", "DRE", "3.11", "Lucro/Prejuízo Consolidado do Período", 393.1, fim, ini),
+        linha("DFP", "DRE", "3.11.01", "Atribuído a Sócios da Empresa Controladora", 0, fim, ini),
+        linha("DFP", "DRE", "3.11.02", "Atribuído a Sócios Não Controladores", 0, fim, ini),
+    ]
+    p = por_chave(padronizar(linhas))[("2023-A", "ano")]
+    assert p.campos["lucro_liquido_controladores"] == 393.1
+    assert [i["conta"] for i in p.insumos["lucro_liquido_controladores"]] == ["3.11"]
+    # Prejuízo zero de verdade continua zero.
+    zerado = [linha("DFP", "DRE", "3.11", "Lucro", 0, fim, ini), linha("DFP", "DRE", "3.11.01", "Ctrl", 0, fim, ini)]
+    assert por_chave(padronizar(zerado))[("2023-A", "ano")].campos["lucro_liquido_controladores"] == 0
+
+
+def test_consolidado_zerado_cede_ao_individual():
+    """Caso real da TIM (DFP 2025): DRE consolidada toda zerada e a individual com o lucro de R$ 4.312 mi."""
+    fim, ini = date(2023, 12, 31), date(2023, 1, 1)
+    linhas = [
+        linha("DFP", "DRE", "3.01", "Receita", 0, fim, ini, consolidado=True),
+        linha("DFP", "DRE", "3.11", "Lucro", 0, fim, ini, consolidado=True),
+        linha("DFP", "DRE", "3.01", "Receita", 26624.7, fim, ini, consolidado=False),
+        linha("DFP", "DRE", "3.11", "Lucro", 4312.0, fim, ini, consolidado=False),
+    ]
+    p = por_chave(padronizar(linhas))[("2023-A", "ano")]
+    assert p.campos["lucro_liquido"] == 4312.0 and p.campos["receita_liquida"] == 26624.7
+    assert p.consolidado is False
+
+
 def test_regra_por_nivel():
     r = Regra("BPP", "x", prefixo="2.", padrao="patrim", nivel=2)
     assert r.casa("2.03", "Patrimônio Líquido")

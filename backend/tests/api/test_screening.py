@@ -33,6 +33,13 @@ def test_screening_filtros_por_faixa_e_setor(cliente):  # noqa: F811
     assert r["itens"][0]["graham_valor"] == pytest.approx(50 ** 0.5)
 
 
+def test_filtro_nao_reprova_o_que_nao_se_aplica():
+    from app.servicos.screening import _dentro
+    assert not _dentro(None, (None, 5))  # dado que falta reprova
+    assert _dentro(None, (None, 5), nao_se_aplica=True)  # DL/EBITDA de banco: não se aplica, passa
+    assert not _dentro(6, (None, 5), nao_se_aplica=True)  # havendo valor, o filtro vale normalmente
+
+
 def test_setor_besst():
     assert setor_besst("Bancos") and setor_besst("Emp. Adm. Part. - Energia Elétrica")
     assert setor_besst("Saneamento, Serv. Água e Gás") and setor_besst("Seguradoras e Corretoras")

@@ -91,6 +91,21 @@ CAMPOS_FLUXO_DEMONSTRACOES = {"DRE", "DFC"}
 CAMPOS_SOMADOS = {"depreciacao_amortizacao", "capex", "dividendos_pagos"}
 
 
+def plano_pela_dre(linhas: list[dict], plano_cadastro: str) -> str:
+    """Plano de contas pelo formato da DRE entregue, não só pelo setor do cadastro.
+
+    Holdings do setor "Intermediação Financeira" ou de seguros (Itaúsa, BB Seguridade) entregam a DRE de empresa
+    comum: a conta 3.01 é "Receita de Venda de Bens e/ou Serviços". Nesse caso valem as regras do plano geral.
+    """
+    if plano_cadastro == "geral":
+        return plano_cadastro
+    ultima = max((lin for lin in linhas if lin["conta_codigo"] == "3.01" and demonstracao_base(lin["tipo"]) == "DRE"),
+                 key=lambda lin: lin["data_fim"], default=None)
+    if ultima and str(ultima["conta_descricao"] or "").lower().startswith("receita de venda"):
+        return "geral"
+    return plano_cadastro
+
+
 def demonstracao_base(tipo: str) -> str:
     return "DFC" if tipo.startswith("DFC") else tipo
 
@@ -150,8 +165,11 @@ def _aplicar_regras(linhas: list[dict], regras: list[Regra]) -> Bloco:
 
 def _derivar(bloco: Bloco) -> None:
     c = bloco.campos
-    if "lucro_liquido_controladores" not in c and "lucro_liquido" in c:
+    # Sem a conta dos controladores, ou com ela zerada e o lucro consolidado não (Klabin e BR Partners em vários
+    # ITR de 2025–2026 entregam 3.11.01 e 3.11.02 zeradas), vale o lucro consolidado.
+    if "lucro_liquido" in c and not c.get("lucro_liquido_controladores") and c["lucro_liquido"] != 0:
         c["lucro_liquido_controladores"] = c["lucro_liquido"]
+        bloco.insumos["lucro_liquido_controladores"] = list(bloco.insumos.get("lucro_liquido", []))
     if "patrimonio_liquido" in c:
         c["patrimonio_liquido_controladores"] = c["patrimonio_liquido"] - c.get("participacao_nao_controladores", 0.0)
     if "ativo_total" in c and "patrimonio_liquido" in c:
@@ -169,7 +187,11 @@ def _selecionar(linhas: list[dict]) -> dict[tuple[str, date], list[dict]]:
         grupos[(linha["documento"], linha["data_referencia"])].append(linha)
     escolhidas = {}
     for chave, grupo in grupos.items():
+        # Consolidado só quando traz algum número: a TIM (DFP 2025) entrega o consolidado todo zerado e os
+        # valores apenas no individual.
         consolidado = any(lin["consolidado"] for lin in grupo)
+        if consolidado and any(not lin["consolidado"] for lin in grupo):
+            consolidado = any(lin["consolidado"] and float(lin["valor"] or 0) != 0 for lin in grupo)
         grupo = [lin for lin in grupo if lin["consolidado"] == consolidado]
         versao = max(lin["versao"] for lin in grupo)
         escolhidas[chave] = [lin for lin in grupo if lin["versao"] == versao]

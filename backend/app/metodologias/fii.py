@@ -134,13 +134,27 @@ def obrigacoes(linha_ativo_passivo: dict | None) -> list[dict]:
     return [{"grupo": g, "valor": v} for g, v in _valores(linha_ativo_passivo, OBRIGACOES).items() if v]
 
 
-def alavancagem(total_passivo: Numero, ativo_total: Numero) -> Resultado:
-    """Alavancagem bruta = passivo total ÷ ativo total (inclui obrigações por aquisição de imóveis e CRI emitidos)."""
+PASSIVO_NAO_ONEROSO = ("Rendimentos a distribuir", "Taxas a pagar")
+
+
+def passivo_nao_oneroso(linha_ativo_passivo: dict | None) -> float:
+    """Rendimentos já declarados e taxas a pagar: saem no mês seguinte e não são dívida do fundo."""
+    if not linha_ativo_passivo:
+        return 0.0
+    valores = _valores(linha_ativo_passivo, OBRIGACOES)
+    return sum(valores.get(g, 0.0) for g in PASSIVO_NAO_ONEROSO)
+
+
+def alavancagem(total_passivo: Numero, ativo_total: Numero, nao_oneroso: Numero = 0) -> Resultado:
+    """Alavancagem bruta = (passivo total − rendimentos a distribuir − taxas a pagar) ÷ ativo total.
+
+    Fica a dívida de fato: obrigações por aquisição de imóveis, CRI emitidos, adiantamentos e provisões.
+    """
     if f := faltando(total_passivo=total_passivo, ativo_total=ativo_total):
         return f
     if ativo_total <= 0:
         return indisponivel("ativo total não positivo")
-    return ok(total_passivo / ativo_total)
+    return ok(max(total_passivo - (nao_oneroso or 0), 0.0) / ativo_total)
 
 
 def vacancia_ponderada(imoveis: Sequence[tuple[Numero, Numero]]) -> Resultado:

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db.modelos import DemonstracaoLinha, DemonstracaoPadronizada, Empresa, Fonte, LoteIngestao
 from app.ingestao.base import lote
-from app.ingestao.padronizacao import padronizar
+from app.ingestao.padronizacao import padronizar, plano_pela_dre
 
 log = logging.getLogger(__name__)
 
@@ -22,7 +22,11 @@ def padronizar_empresa(sessao: Session, empresa: Empresa) -> int:
     if not linhas:
         return 0
     fontes = {f.codigo: f.id for f in sessao.scalars(select(Fonte))}
-    periodos = padronizar(linhas, empresa.tipo_plano_contas)
+    plano = plano_pela_dre(linhas, empresa.tipo_plano_contas)
+    if plano != empresa.tipo_plano_contas:
+        log.info("%s: DRE no formato de empresa comum, plano %s → %s", empresa.nome, empresa.tipo_plano_contas, plano)
+        empresa.tipo_plano_contas = plano
+    periodos = padronizar(linhas, plano)
     sessao.execute(delete(DemonstracaoPadronizada).where(DemonstracaoPadronizada.empresa_id == empresa.id))
     for p in periodos:
         origem = [lin for lin in linhas if lin["documento"] == p.documento and lin["data_referencia"] == p.data_fim]

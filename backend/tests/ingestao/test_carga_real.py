@@ -110,6 +110,7 @@ def test_codigos_que_nao_sao_ticker_b3_sao_ignorados(sessao):
     from app.ingestao import cvm_companhias
     assert cvm_companhias.ticker_valido("PETR4") and cvm_companhias.ticker_valido("TAEE11")
     assert not cvm_companhias.ticker_valido("8192") and not cvm_companhias.ticker_valido("022055")
+    assert cvm_companhias.ticker_valido("B3SA3") and not cvm_companhias.ticker_valido("25585")  # B3: dígito na raiz
     carregar_companhias(sessao)
     sessao.add(Ativo(ticker="8192", classe="ACAO", empresa_id=sessao.scalar(select(Ativo.empresa_id).limit(1))))
     sessao.commit()

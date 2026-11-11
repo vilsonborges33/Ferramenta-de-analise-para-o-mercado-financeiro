@@ -14,7 +14,7 @@ rotas = APIRouter(tags=["dados"])
 
 @rotas.get("/acoes")
 def listar_acoes(busca: str | None = None, sessao: Session = Depends(obter_sessao)):
-    return consultas.listar(sessao, "ACAO", busca)
+    return consultas.listar(sessao, ("ACAO", "UNIT"), busca)
 
 
 @rotas.get("/acoes/{ticker}")

@@ -33,13 +33,13 @@ def _testar_padronizacao(sessao, empresa) -> str:
     """Roda a organização dos balanços da empresa em memória e devolve o resultado ou o erro."""
     import traceback
 
-    from app.ingestao.padronizacao import padronizar
+    from app.ingestao.padronizacao import padronizar, plano_pela_dre
     from app.ingestao.padronizacao_db import _COLUNAS
     consulta = select(*[getattr(DemonstracaoLinha, c) for c in _COLUNAS]).where(
         DemonstracaoLinha.empresa_id == empresa.id)
     linhas = [dict(zip(_COLUNAS, r, strict=True)) for r in sessao.execute(consulta)]
     try:
-        periodos = padronizar(linhas, empresa.tipo_plano_contas)
+        periodos = padronizar(linhas, plano_pela_dre(linhas, empresa.tipo_plano_contas))
     except Exception:  # noqa: BLE001
         return "ERRO\n" + traceback.format_exc()[-1500:]
     exemplos = sorted({(p.periodo, p.tipo_periodo) for p in periodos})[-4:]

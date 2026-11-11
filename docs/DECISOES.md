@@ -392,6 +392,40 @@ Usa as tabelas `carteira`, `lancamento`, `arquivo_importacao`, `preco_medio_ajus
 - Perdidos, sem backup: conta de usuário, carteiras, lançamentos, preços médios ajustados, favoritos, valuations salvos, diário e alertas. Os dados de mercado foram recarregados pelo worker (carga inicial automática).
 - Correções: trava no `conftest.py` (só aceita banco cujo nome termine em `_teste`; use `TEST_DATABASE_URL`), banco `analise_teste` criado, `alembic stamp head` depois de conferir que o esquema era idêntico ao das migrações.
 
+## Segunda conferência com a Ward (10/11/2026)
+
+**D-043 — Correções da segunda conferência** · aprovada (usuário pediu testes completos com a Ward como base)
+- Detalhes, números e o que ficou de fora em `docs/VALIDACAO_WARD.md`.
+- **Recálculo resiliente:** insumo vazio não derruba o cálculo, e a falha de um ativo fica no log sem parar os outros.
+  Antes, um FII sem cotação deixava todos os indicadores parados.
+- **Risco sobre o retorno total:** volatilidade, retorno 12m e Sharpe usam o índice com proventos reinvestidos na
+  data-ex (o mesmo do longo prazo). Picos isolados de cotação errada da fonte saem (`indices_sem_picos`: até 5 pregões
+  fora de 2× a mediana dos vizinhos).
+- **Units:** entram no recálculo, na lista e no ranking. Indicadores por unit (LPA = lucro ÷ ações ÷ ações por unit).
+  A composição fica em `COMPOSICAO_UNITS` (a CVM não publica e a tabela `unit_composicao` exigiria ativos para
+  ON/PN que nem sempre existem). Unit fora da tabela mostra o motivo da indisponibilidade.
+- **Padronização:**
+  - lucro dos controladores zerado com lucro consolidado ≠ 0 → vale o consolidado;
+  - DRE consolidada toda zerada → vale a individual;
+  - plano de contas pelo formato da DRE entregue: conta 3.01 = "Receita de Venda…" usa o plano geral, mesmo com
+    setor financeiro.
+- **Capital já sem tesouraria (`CAPITAL_SEM_TESOURARIA`, por CNPJ e data):** só a Vale, desde 31/03/2026,
+  confirmado pelo total de ações da B3. Regra automática foi descartada: confundia com cancelamentos reais de ações
+  (Gerdau, Allos, Movida).
+- **Alavancagem de FII (versão 2):** sem rendimentos a distribuir e taxas a pagar.
+- **Tickers:**
+  - raiz com dígito aceita (B3SA3);
+  - o FCA do ano anterior completa as empresas que ainda não entregaram o do ano corrente.
+- **Screening:** DL/EBITDA e margem líquida que não se aplicam a bancos e seguradoras não reprovam o ativo no filtro.
+- **Mantidos de propósito (critério documentado):**
+  - P/EBIT pelo ticker (D-008);
+  - ações em circulação, e não emitidas;
+  - ROIC de Damodaran;
+  - margem pelo lucro dos controladores;
+  - Gordon conservador (crescimento 0%, Tesouro longo líquido);
+  - Bazin pelos dividendos de 12 meses;
+  - PEG clássico de Lynch.
+
 ## Perguntas em aberto
 
 > Itens 1 a 11 e 15 respondidos (D-012, D-019, D-020). Os demais seguem abertos.

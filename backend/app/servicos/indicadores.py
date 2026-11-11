@@ -4,6 +4,7 @@ Busca os insumos no banco, chama as funções puras de `app.metodologias` e grav
 `indicador_calculado` o valor (ou o motivo da indisponibilidade) com a procedência de cada insumo.
 """
 
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 
@@ -34,7 +35,21 @@ from app.metodologias import reit as mreit
 from app.metodologias.registro import POR_ID
 from app.metodologias.tipos import Resultado, indisponivel
 
+log = logging.getLogger(__name__)
+
 PREGOES_LIQUIDEZ = 42  # ~2 meses de pregões
+
+# Ações que formam cada unit (ON, PN), pelo estatuto de cada empresa. Conferido em 10/11/2026 pelas cotações:
+# preço da unit ≈ ON × a + PN × b (ENGI11, SANB11, SAPR11, TAEE11). A CVM não publica essa composição.
+COMPOSICAO_UNITS: dict[str, tuple[int, int]] = {
+    "ALUP11": (1, 2), "BPAC11": (1, 2), "BRBI11": (1, 2), "ENGI11": (1, 4), "IGTI11": (1, 2),
+    "KLBN11": (1, 4), "RNEW11": (1, 2), "SANB11": (1, 1), "SAPR11": (1, 4), "TAEE11": (1, 2),
+}
+
+# Empresas que passaram a informar no ITR o capital integralizado já sem as ações em tesouraria (CNPJ → a partir
+# de). Vale: em 31/03/2026 o capital cai de 4.539 mi para 4.263 mi com 175 mi em tesouraria; a B3 mostra 4.439 mi
+# emitidas (= 4.256 + 183 em 30/09/2026). Subtrair a tesouraria de novo contaria 4.072 mi ações (D-043).
+CAPITAL_SEM_TESOURARIA: dict[str, date] = {"33.592.510/0001-54": date(2026, 3, 31)}
 MOTIVO_SEM_PROVENTOS = "proventos não ingeridos: a carga de dividendos ainda não rodou com sucesso"
 
 
@@ -147,6 +162,9 @@ class Calculadora:
 
         preco = float(cotacao.fechamento) if cotacao else None
         i_preco = self._insumo("preco", preco, cotacao, data_pregao=cotacao.data.isoformat()) if cotacao else None
+        # Unit: LPA, VPA e múltiplos por unit (ações da empresa ÷ ações por unit); demais tickers, por ação.
+        composicao = COMPOSICAO_UNITS.get(ativo.ticker) if ativo.classe == "UNIT" else (1, 0)
+        por_ticker = sum(composicao) if composicao else None
 
         # Ações em circulação (todas as classes) e valor de mercado
         acoes = indisponivel("dado indisponível: composição do capital")
@@ -154,8 +172,10 @@ class Calculadora:
         classes: list[tuple[float | None, float | None]] = []
         aviso_classes = None
         if capital:
-            on = float(capital.acoes_ordinarias or 0) - float(capital.acoes_tesouraria_on or 0)
-            pn = float(capital.acoes_preferenciais or 0) - float(capital.acoes_tesouraria_pn or 0)
+            desde = CAPITAL_SEM_TESOURARIA.get(empresa.cnpj)
+            descontar = 0.0 if desde and capital.data_referencia >= desde else 1.0
+            on = float(capital.acoes_ordinarias or 0) - descontar * float(capital.acoes_tesouraria_on or 0)
+            pn = float(capital.acoes_preferenciais or 0) - descontar * float(capital.acoes_tesouraria_pn or 0)
             fator, aviso_escala = ib.fator_escala_acoes(on + pn, preco, c.get("patrimonio_liquido_controladores"),
                                                         c.get("receita_liquida"))
             on, pn = on * fator, pn * fator
@@ -178,7 +198,14 @@ class Calculadora:
         add("basico.valor_mercado", vm, [i_preco, i_acoes], cotacao.data if cotacao else None)
 
         # "Valor de mercado do ticker": cotação deste ticker × total de ações (P/L = preço ÷ LPA).
-        vm_ticker = (preco * acoes.valor) if (preco is not None and acoes.disponivel) else None
+        # Para a unit, a quantidade vira "units equivalentes" (ações ÷ ações por unit).
+        if por_ticker is None:
+            acoes_ticker = indisponivel("composição da unit (ações por unit) desconhecida")
+        elif acoes.disponivel:
+            acoes_ticker = Resultado(acoes.valor / por_ticker)
+        else:
+            acoes_ticker = acoes
+        vm_ticker = (preco * acoes_ticker.valor) if (preco is not None and acoes_ticker.disponivel) else None
         base = [i_preco, i_acoes]
 
         lucro = c.get("lucro_liquido_controladores")
@@ -204,9 +231,9 @@ class Calculadora:
         add("basico.divida_bruta", nao_aplica(db), i_div)
         add("basico.divida_liquida", nao_aplica(dl), i_div + i_caixa)
         add("basico.ev", nao_aplica(ev), base + i_div + i_caixa)
-        lpa_r = ib.lpa(lucro, acoes.valor)
+        lpa_r = ib.lpa(lucro, acoes_ticker.valor) if acoes_ticker.disponivel else acoes_ticker
         add("basico.lpa", lpa_r, [i_lucro, i_acoes])
-        vpa_r = ib.vpa(pl, acoes.valor)
+        vpa_r = ib.vpa(pl, acoes_ticker.valor) if acoes_ticker.disponivel else acoes_ticker
         add("basico.vpa", vpa_r, [i_pl, i_acoes])
         p_l_r = ib.p_l(vm_ticker, lucro)
         add("basico.p_l", p_l_r, base + [i_lucro])
@@ -286,7 +313,10 @@ class Calculadora:
     def _precos_por_especie(self, empresa: Empresa) -> dict[str, float]:
         """Cotação mais recente por espécie; havendo vários tickers da mesma espécie, o mais líquido."""
         melhores: dict[str, tuple[float, float]] = {}
+        unit = None
         for a in empresa.ativos:
+            if a.especie == "UNIT" and a.ticker in COMPOSICAO_UNITS:
+                unit = a
             if a.especie not in ("ON", "PN"):
                 continue
             cot = self.ultima_cotacao(a.id)
@@ -295,7 +325,13 @@ class Calculadora:
             volume = float(cot.volume_financeiro or 0)
             if a.especie not in melhores or volume > melhores[a.especie][1]:
                 melhores[a.especie] = (float(cot.fechamento), volume)
-        return {k: v[0] for k, v in melhores.items()}
+        precos = {k: v[0] for k, v in melhores.items()}
+        # Empresa negociada quase só pela unit (KLBN, ALUP, BRBI): a classe sem cotação vale unit ÷ ações por unit.
+        cot_unit = self.ultima_cotacao(unit.id) if unit else None
+        if cot_unit is not None:
+            for especie in ("ON", "PN"):
+                precos.setdefault(especie, float(cot_unit.fechamento) / sum(COMPOSICAO_UNITS[unit.ticker]))
+        return precos
 
     def _cagr(self, empresa: Empresa) -> list[Calculo]:
         ultimo = self.padronizada(empresa.id, "ano")
@@ -343,7 +379,8 @@ class Calculadora:
             i_prov = [self._insumo("provento", p.valor_por_cota, p, data_com=p.data_com.isoformat(),
                                    data_pagamento=p.data_pagamento.isoformat() if p.data_pagamento else None)
                       for p in proventos]
-            calculos.append(Calculo("basico.dy", ib.dividend_yield(soma, preco), [i_preco] + i_prov, referencia))
+            calculos.append(Calculo("basico.dy", ib.dividend_yield(soma, preco),
+                                    ([i_preco] if i_preco else []) + i_prov, referencia))
 
         if fii is None:
             sem = indisponivel("dado indisponível: fundo sem informe mensal ligado ao ticker (ISIN)")
@@ -383,7 +420,8 @@ class Calculadora:
         ]
         ativo_total = float(ultimo.ativo_total) if ultimo and ultimo.ativo_total is not None else None
         passivo = float(ultimo.total_passivo) if ultimo and ultimo.total_passivo is not None else None
-        calculos.append(Calculo("fii.alavancagem", mfii.alavancagem(passivo, ativo_total),
+        nao_oneroso = mfii.passivo_nao_oneroso(ultimo.extras if ultimo else None)
+        calculos.append(Calculo("fii.alavancagem", mfii.alavancagem(passivo, ativo_total, nao_oneroso),
                                 [i_inf("total_passivo"), i_inf("ativo_total")], data_inf))
         imoveis = self.imoveis(fii.id)
         vac = mfii.vacancia_ponderada([(None if i.area_m2 is None else float(i.area_m2),
@@ -478,7 +516,7 @@ class Calculadora:
                 "ativo_id": ativo.id, "metrica": calc.metrica, "data_referencia": calc.data_referencia,
                 "valor": calc.resultado.valor, "motivo_indisponivel": calc.resultado.motivo_indisponivel,
                 "parametros": {p.chave: p.padrao for p in metrica.parametros},
-                "insumos": [i.como_dict() for i in calc.insumos] + (
+                "insumos": [i.como_dict() for i in calc.insumos if i is not None] + (
                     [{"aviso": calc.resultado.detalhes["aviso"]}] if "aviso" in calc.resultado.detalhes else []),
                 "versao_metodologia": metrica.versao, "calculado_em": agora,
             }
@@ -492,11 +530,19 @@ class Calculadora:
 
 def recalcular(sessao: Session, tickers: list[str] | None = None) -> int:
     calc = Calculadora(sessao)
-    consulta = select(Ativo).where(Ativo.ativo.is_(True), Ativo.classe.in_(("ACAO", "FII", "STOCK", "REIT", "ETF")))
+    consulta = select(Ativo).where(Ativo.ativo.is_(True),
+                                   Ativo.classe.in_(("ACAO", "UNIT", "FII", "STOCK", "REIT", "ETF")))
     if tickers:
         consulta = consulta.where(Ativo.ticker.in_(tickers))
-    total = 0
+    total, falhas = 0, []
     for ativo in sessao.scalars(consulta).all():
-        total += calc.materializar(ativo)
-        sessao.commit()
+        try:  # um ativo com dado estranho não pode deixar todos os outros com números velhos
+            total += calc.materializar(ativo)
+            sessao.commit()
+        except Exception:
+            sessao.rollback()
+            log.exception("indicadores de %s falharam", ativo.ticker)
+            falhas.append(ativo.ticker)
+    if falhas:
+        log.error("recálculo concluído com falha em %d ativo(s): %s", len(falhas), ", ".join(falhas[:20]))
     return total
