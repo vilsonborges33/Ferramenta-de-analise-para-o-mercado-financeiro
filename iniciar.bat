@@ -8,10 +8,19 @@ set MODO=%1
 docker info >nul 2>&1
 if not errorlevel 1 goto pronto
 echo === Abrindo o Docker Desktop ===
-if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" start "" "%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
+REM Instalacao para todos os usuarios (Arquivos de Programas) ou so para o usuario (AppData\Local\Programs).
+set DOCKER_EXE=
+if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" set DOCKER_EXE=%ProgramFiles%\Docker\Docker\Docker Desktop.exe
+if exist "%LOCALAPPDATA%\Programs\DockerDesktop\Docker Desktop.exe" set DOCKER_EXE=%LOCALAPPDATA%\Programs\DockerDesktop\Docker Desktop.exe
+if not defined DOCKER_EXE (
+  echo Docker Desktop nao encontrado. Instale-o ou abra-o manualmente.
+  if not "%MODO%"=="silencioso" pause
+  exit /b 1
+)
+start "" "%DOCKER_EXE%"
 set /a TENTATIVAS=0
 :esperar
-timeout /t 5 /nobreak >nul
+"%SystemRoot%\System32\timeout.exe" /t 5 /nobreak >nul
 docker info >nul 2>&1
 if not errorlevel 1 goto pronto
 set /a TENTATIVAS+=1
@@ -35,5 +44,5 @@ echo.
 echo Sistema ligado. Os dados atrasados estao sendo buscados em segundo plano
 echo (acompanhe em http://localhost:3000/status).
 if "%MODO%"=="silencioso" exit /b 0
-timeout /t 5 /nobreak >nul
+"%SystemRoot%\System32\timeout.exe" /t 5 /nobreak >nul
 start "" http://localhost:3000

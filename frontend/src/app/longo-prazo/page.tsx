@@ -8,7 +8,9 @@ import { Grafico } from "@/componentes/Grafico";
 type Serie = { nome: string; tipo: string; classe?: string | null; fonte: string; nominal: (number | null)[]; real: (number | null)[];
   acumulado_nominal: number | null; acumulado_real: number | null; real_anualizado: number | null };
 type Cape = { valor: number | null; motivo_indisponivel: string | null; anos?: number; valor_mercado?: number | null;
-  lucro_real_medio?: number | null; lucros?: { ano: number; lucro_nominal: number; lucro_real: number }[] };
+  lucro_real_medio?: number | null; lucros?: { ano: number; lucro_nominal: number; lucro_real: number }[];
+  premio_risco?: { valor: number | null; motivo_indisponivel: string | null; earnings_yield_real: number | null;
+    juro_real: number | null; descricao_juro: string | null } };
 type Resposta = { meses: string[]; inicio?: string; ultimo_ipca?: string; series: Serie[]; capes: Record<string, Cape>;
   observacao?: string; motivo?: string };
 
@@ -132,6 +134,16 @@ export default function LongoPrazo() {
                   <>
                     <div className="mono mt-1.5 text-2xl font-bold">{c.valor.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}x</div>
                     <div className="text-xs suave">valor de mercado ÷ lucro real médio de {c.anos} anos</div>
+                    {c.premio_risco && (
+                      <div className="mt-2 border-t pt-2 text-xs">
+                        <span className="rotulo">Prêmio de risco (Siegel)</span>{" "}
+                        {c.premio_risco.valor !== null ? (
+                          <><span className="mono font-semibold">{pctf(c.premio_risco.valor)}</span>
+                            <span className="suave"> = 1/CAPE {pctf(c.premio_risco.earnings_yield_real)} − juro real {pctf(c.premio_risco.juro_real)}
+                              {c.premio_risco.descricao_juro ? ` (${c.premio_risco.descricao_juro})` : ""}</span></>
+                        ) : <span className="suave">{c.premio_risco.motivo_indisponivel}</span>}
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="mt-1.5 text-sm suave">{c.motivo_indisponivel}</div>
@@ -139,8 +151,9 @@ export default function LongoPrazo() {
               </div>
             ))}
           </div>
-          <p className="text-xs suave">Siegel/Shiller usam 10 anos para suavizar o ciclo. Temos as demonstrações anuais da CVM desde 2020;
-            com menos anos, o número fica indisponível — escolha uma média menor sabendo que ela suaviza menos.</p>
+          <p className="text-xs suave">Siegel/Shiller usam 10 anos para suavizar o ciclo. As demonstrações anuais da CVM vêm desde 2011;
+            empresas com menos anos de capital aberto ficam indisponíveis — escolha uma média menor sabendo que ela suaviza menos.
+            O prêmio de risco compara o rendimento real implícito das ações (1/CAPE) com o juro real do Tesouro IPCA+ mais longo.</p>
         </div>
       )}
       <Aviso>Retornos passados não garantem retornos futuros. Cálculos sobre dados públicos; não constituem recomendação de investimento.</Aviso>

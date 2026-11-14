@@ -64,6 +64,9 @@ FONTES: tuple[DefinicaoFonte, ...] = (
     DefinicaoFonte("TESOURO_TD", "Tesouro Transparente — Taxas dos títulos ofertados pelo Tesouro Direto",
                    "https://www.tesourotransparente.gov.br/ckan/dataset/taxas-dos-titulos-ofertados-pelo-tesouro-direto",
                    "Dados abertos (licença a confirmar)"),
+    DefinicaoFonte("DAMODARAN", "Damodaran Online — Country Default Spreads and Risk Premiums (ctryprem.xlsx)",
+                   "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/ctryprem.html",
+                   "Planilha pública e gratuita do prof. Aswath Damodaran (NYU Stern), uso livre com citação"),
 )
 
 

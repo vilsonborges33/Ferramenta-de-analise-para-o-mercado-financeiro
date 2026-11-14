@@ -288,9 +288,13 @@ METODOS: tuple[Metrica, ...] = (
     # 9 — Damodaran
     _metodo("damodaran.custo_capital_proprio", "Custo do capital próprio", "Damodaran", "%",
             "rf + β × ERP + λ × prêmio de risco país", DAMODARAN,
-            premissas=("ERP, risco país e betas setoriais dos datasets públicos do Damodaran, com data de referência.",
-                       "Conversão US$ → R$ pelo diferencial de inflação."),
-            limitacoes=("Beta setorial dos EUA/emergentes, realavancado pela estrutura de capital da empresa.",)),
+            premissas=("ERP do mercado maduro (e dos EUA) e prêmio de risco país do Brasil da planilha pública do "
+                       "Damodaran (ctryprem.xlsx), com a data da atualização.",
+                       "Brasil: rf = Tesouro Prefixado mais longo − spread de default do Brasil (o título já embute o "
+                       "risco de default; tirá-lo evita contar duas vezes com o prêmio país). EUA: Treasury 10 anos.",
+                       "β = regressão de 2 anos contra o Ibovespa ou o SPY; sem histórico, β = 1 (avisado).",
+                       "λ = 1 (exposição ao risco país igual à média)."),
+            limitacoes=("Beta histórico, não setorial: muda com o período e é ruidoso em ações pouco líquidas.",)),
     _metodo("damodaran.gordon", "Modelo de Gordon (dividendos)", "Damodaran", "R$/ação", "D0 × (1 + g) ÷ (Ke − g)",
             DAMODARAN, limitacoes=("Exige Ke > g e dividendos positivos.",)),
     _metodo("damodaran.ddm_dois_estagios", "Desconto de dividendos em dois estágios", "Damodaran", "R$/ação",
@@ -323,14 +327,16 @@ METODOS: tuple[Metrica, ...] = (
     # 2 — Lo & Foerster
     _metodo("portfolio.sharpe", "Índice de Sharpe", "Portfólio", "x", "(retorno − rf) ÷ volatilidade", LO_FOERSTER,
             parametros=(_RF,), aplica_a=("ACAO", "FII", "CARTEIRA"),
-            premissas=("Na página do ativo: retorno dos últimos 12 meses (sem dividendos) e CDI acumulado no "
-                       "mesmo período como taxa livre de risco.",)),
+            premissas=("Na página do ativo: retorno total dos últimos 12 meses (cotação + proventos reinvestidos "
+                       "na data-ex) e CDI acumulado no mesmo período como taxa livre de risco.",)),
     _metodo("portfolio.volatilidade", "Volatilidade (12 m)", "Portfólio", "%",
             "Desvio-padrão dos retornos diários × √252", LO_FOERSTER, aplica_a=("ACAO", "FII", "CARTEIRA"),
-            premissas=("Fechamentos diários dos últimos 12 meses.",),
-            limitacoes=("Cotações sem ajuste por proventos: a data-ex aparece como queda.",)),
+            premissas=("Retornos diários do índice de retorno total dos últimos 12 meses (proventos reinvestidos).",),
+            limitacoes=("Pregões isolados com cotação mais de 2× fora da mediana dos vizinhos são descartados "
+                        "(erro da fonte); desdobramentos não são afetados.",)),
     _metodo("portfolio.beta", "Beta (CAPM)", "Portfólio", "x", "cov(ativo, mercado) ÷ var(mercado)", LO_FOERSTER,
-            premissas=("Retornos diários alinhados com o índice de mercado.",)),
+            premissas=("Retornos diários de 2 anos (com proventos), nos dias em que o ativo e o índice têm preço: "
+                       "Ibovespa para a B3 e SPY (S&P 500) para os EUA.",)),
     _metodo("portfolio.fronteira", "Fronteira eficiente de Markowitz", "Portfólio", "un",
             "Mínima variância para cada retorno-alvo, pesos ≥ 0 somando 100%", LO_FOERSTER, aplica_a=("CARTEIRA",),
             limitacoes=("Muito sensível às médias históricas estimadas.",)),

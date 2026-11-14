@@ -27,7 +27,15 @@ docker compose exec backend python -m app.jobs.cli carga-inicial --de 2020 --ate
 ```
 
 Outros comandos: `proventos` (B3 + FNET, depois recalcula os indicadores), `companhias`, `demonstracoes 2025 2026`, `fiis 2026`, `cotacoes-historicas 2026`,
-`cotacoes-do-dia`, `macro`, `indicadores --tickers PETR4 VALE3`.
+`cotacoes-do-dia`, `macro`, `indicadores --tickers PETR4 VALE3`, `historico-longo` (DFP desde ~2011, para as análises de
+10 anos).
+
+## Mercado dos EUA
+
+Preencha `CONTATO_SEC` no `.env` com um e-mail real (a SEC exige; ele só é enviado à SEC). Sem `TICKERS_EUA`, o sistema
+acompanha todas as empresas listadas na NYSE, Nasdaq e Cboe (~6 mil). A primeira carga baixa ~1,3 GB de balanços da SEC e
+leva algumas horas para buscar as cotações; depois, só quem entrega 10-K/10-Q novo é recarregado. Para acompanhar só
+uma lista, use `TICKERS_EUA=AAPL,MSFT,KO`.
 
 ## Manter atualizado (Windows)
 
@@ -38,8 +46,9 @@ quando o backend sobe; os dados já carregados são preservados.
 ## Dados sempre em dia (Windows)
 
 - **`iniciar.bat`** (dois cliques): abre o Docker Desktop se preciso, liga o sistema e abre o navegador.
-- **`instalar-inicio-automatico.bat`** (uma vez): faz o sistema ligar sozinho ao entrar no Windows.
-  Para desfazer: `instalar-inicio-automatico.bat remover`.
+- **`instalar-inicio-automatico.bat`** (uma vez): faz o sistema ligar sozinho ao entrar no Windows, sem abrir janelas
+  (roda o `iniciar-oculto.vbs`; o que acontecer fica em `logs\inicio.log`). Quem instalou a versão antiga, que abria o
+  cmd a cada login, só precisa rodá-lo de novo. Para desfazer: `instalar-inicio-automatico.bat remover`.
 - Toda vez que o sistema liga, o worker confere a data dos dados e busca só o que ficou para trás
   (cotações e dividendos dos dias perdidos, Selic/Tesouro e, se estiverem com mais de um dia,
   balanços e informes da CVM); depois recalcula os indicadores. Para rodar à mão: `cli por-em-dia`.

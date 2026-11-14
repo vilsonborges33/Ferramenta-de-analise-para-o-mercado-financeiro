@@ -242,9 +242,6 @@ tbody tr:hover {
 .faixa-rolante:hover {
   animation-play-state: paused;
 }
-@media (prefers-reduced-motion: reduce) {
-  .faixa-rolante { animation: none; }
-}
 
 /* Menu lateral */
 .menu-item {

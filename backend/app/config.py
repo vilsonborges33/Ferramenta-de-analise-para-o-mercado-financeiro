@@ -32,9 +32,15 @@ class Configuracao(BaseSettings):
     fonte_mercado: str = "yahoo"
 
     # Mercado dos EUA (Fase 7): empresas e REITs com balanço na SEC, e ETFs (só cotação e dividendos).
-    # A lista é editável no .env; a SEC exige CONTATO_USER_AGENT com um e-mail.
+    # Sem TICKERS_EUA, acompanha todas as empresas listadas na NYSE/Nasdaq/Cboe (D-044). A SEC exige um contato com
+    # e-mail; CONTATO_SEC vai só nas requisições à SEC (CONTATO_USER_AGENT segue para as demais fontes).
+    contato_sec: str = ""
     tickers_eua: str = ""
     etfs_eua: str = ""
+
+    @property
+    def eua_todas(self) -> bool:
+        return not self.tickers_eua.strip()
 
     @property
     def lista_tickers_eua(self) -> list[str]:

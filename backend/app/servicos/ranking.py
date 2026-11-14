@@ -4,7 +4,10 @@ Usa os indicadores materializados (LPA, VPA, DY, CAGR do lucro, EY, ROC, liquide
 métodos com os parâmetros escolhidos pelo usuário, sem gravar nada.
 """
 
+import threading
+import time
 from dataclasses import dataclass
+from datetime import date, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -32,29 +35,66 @@ class Parametros:
     limite: int = 100
 
 
-def _ultimas_cotacoes(sessao: Session) -> dict[int, tuple[float, str]]:
-    consulta = (select(CotacaoDiaria.ativo_id, CotacaoDiaria.fechamento, CotacaoDiaria.data)
-                .distinct(CotacaoDiaria.ativo_id)
-                .order_by(CotacaoDiaria.ativo_id, CotacaoDiaria.data.desc()))
-    return {a: (float(f), d.isoformat()) for a, f, d in sessao.execute(consulta)}
+def _ultimas_cotacoes(sessao: Session, ids: list[int]) -> dict[int, tuple[float, str]]:
+    """Último fechamento de cada ativo pedido: primeiro nos últimos 60 dias (rápido, sem varrer milhões de cotações
+    antigas); quem não negociou nesse período é buscado depois, sem limite de data."""
+    def consulta(alvos: list[int], desde: date | None):
+        c = select(CotacaoDiaria.ativo_id, CotacaoDiaria.fechamento, CotacaoDiaria.data).where(
+            CotacaoDiaria.ativo_id.in_(alvos))
+        if desde:
+            c = c.where(CotacaoDiaria.data >= desde)
+        return c.distinct(CotacaoDiaria.ativo_id).order_by(CotacaoDiaria.ativo_id, CotacaoDiaria.data.desc())
+
+    saida = {a: (float(f), d.isoformat()) for a, f, d in sessao.execute(
+        consulta(ids, date.today() - timedelta(days=60)))}
+    faltam = [i for i in ids if i not in saida]
+    if faltam:
+        saida |= {a: (float(f), d.isoformat()) for a, f, d in sessao.execute(consulta(faltam, None))}
+    return saida
+
+
+def limpar_cache() -> None:
+    """Chamada depois de cada recálculo de indicadores (e nos testes, que recriam o banco)."""
+    _cache.clear()
 
 
 CLASSES_POR_MERCADO = {"B3": ("ACAO", "UNIT"), "EUA": ("STOCK", "REIT")}
 
 
+CACHE_SEGUNDOS = 60  # os indicadores só mudam no recálculo; a página inicial pede 4 rankings de uma vez
+_cache: dict[str, tuple[float, list[dict]]] = {}
+_travas = {m: threading.Lock() for m in CLASSES_POR_MERCADO}  # uma por mercado: os EUA não seguram a B3
+
+
 def _universo(sessao: Session, mercado: str = "B3") -> list[dict]:
+    """Universo do ranking, montado uma vez a cada minuto por mercado (com trava, para pedidos simultâneos)."""
+    with _travas[mercado]:
+        guardado = _cache.get(mercado)
+        if guardado and time.monotonic() - guardado[0] < CACHE_SEGUNDOS:
+            return guardado[1]
+        universo = _montar_universo(sessao, mercado)
+        _cache[mercado] = (time.monotonic(), universo)
+        return universo
+
+
+def _montar_universo(sessao: Session, mercado: str) -> list[dict]:
     ativos = list(sessao.scalars(select(Ativo).where(Ativo.classe.in_(CLASSES_POR_MERCADO[mercado]),
                                                      Ativo.ativo.is_(True))))
-    valores: dict[int, dict[str, tuple[float | None, list]]] = {}
+    ids = [a.id for a in ativos]
+    valores: dict[int, dict[str, float | None]] = {}
     motivos_dy: dict[int, str | None] = {}
+    # Só valores e motivos: a procedência (JSON) de dezenas de milhares de indicadores custava segundos por pedido.
     consulta = select(IndicadorCalculado.ativo_id, IndicadorCalculado.metrica, IndicadorCalculado.valor,
-                      IndicadorCalculado.insumos, IndicadorCalculado.motivo_indisponivel).where(
-        IndicadorCalculado.metrica.in_(METRICAS_USADAS))
-    for ativo_id, metrica, valor, insumos, motivo in sessao.execute(consulta):
-        valores.setdefault(ativo_id, {})[metrica] = (None if valor is None else float(valor), insumos)
+                      IndicadorCalculado.motivo_indisponivel).where(
+        IndicadorCalculado.metrica.in_(METRICAS_USADAS), IndicadorCalculado.ativo_id.in_(ids))
+    for ativo_id, metrica, valor, motivo in sessao.execute(consulta):
+        valores.setdefault(ativo_id, {})[metrica] = None if valor is None else float(valor)
         if metrica == "basico.dy":
             motivos_dy[ativo_id] = motivo
-    cotacoes = _ultimas_cotacoes(sessao)
+    # A procedência só é usada para o aviso de crescimento atípico (lucro inicial e final do CAGR).
+    insumos_cagr = dict(sessao.execute(select(IndicadorCalculado.ativo_id, IndicadorCalculado.insumos).where(
+        IndicadorCalculado.metrica == "basico.cagr_lucro_5a", IndicadorCalculado.ativo_id.in_(ids))).all())
+    cotacoes = _ultimas_cotacoes(sessao, ids)
     universo = []
     for a in ativos:
         v = valores.get(a.id, {})
@@ -64,8 +104,8 @@ def _universo(sessao: Session, mercado: str = "B3") -> list[dict]:
             "setor": a.empresa.setor if a.empresa else None,
             "tipo_plano_contas": a.empresa.tipo_plano_contas if a.empresa else "geral",
             "preco": preco, "data_preco": data,
-            **{m: v.get(m, (None, []))[0] for m in METRICAS_USADAS},
-            "_insumos_cagr": v.get("basico.cagr_lucro_5a", (None, []))[1],
+            **{m: v.get(m) for m in METRICAS_USADAS},
+            "_insumos_cagr": insumos_cagr.get(a.id) or [],
             "_motivo_dy": motivos_dy.get(a.id),
         })
     return universo

@@ -96,6 +96,13 @@
   - Integrada pelo `companyfacts` (fundamentos) e pelo `submissions` (nome e código SIC); o mapa ticker → CIK vem do `company_tickers.json`.
   - User-Agent = `CONTATO_USER_AGENT` do `.env`. Sem um e-mail real, a ingestão para e avisa em Status.
   - A taxa dos ETFs **não** é coletada: o usuário a informa na calculadora de custos (o XBRL dos prospectos não foi integrado).
+- **Situação em 11/11/2026 (D-044): todas as empresas listadas.**
+  - Universo: `company_tickers_exchange.json`, só NYSE, Nasdaq e Cboe (~6 mil empresas), um ticker por empresa.
+  - Primeira carga: pacote `daily-index/xbrl/companyfacts.zip` (~1,3 GB, retomado se cair, conferido pelo CRC).
+  - Dia a dia: índice diário `daily-index/{ano}/QTR{n}/form.AAAAMMDD.idx`; só quem arquivou 10-K/10-Q é recarregado.
+  - Setor (SIC): um `submissions` por empresa, só na primeira vez.
+  - O contato vai em `CONTATO_SEC`, enviado só à SEC; `CONTATO_USER_AGENT` segue para as demais fontes.
+  - Emissores estrangeiros (20-F/40-F) ficam sem balanço: as ações do relatório não têm a base do ADR negociado.
 
 ## 6.1 Tesouro dos EUA (Fase 7)
 
@@ -132,6 +139,10 @@
 - **Formato:** XLS/XLSX, sem API. Os nomes de arquivo e os layouts mudam entre versões, então o parser deve validar colunas e falhar de forma explícita quando algo mudar.
 - **Termos:** não foi encontrada licença explícita. Terceiros usam os dados citando o autor ("with his permission").
   - **Conclusão:** citar autor, arquivo e data de referência em toda tela que use esses parâmetros. Se o produto for comercial, pedir permissão por e-mail.
+- **Situação em 11/11/2026 (D-044):**
+  - Integrado só o `ctryprem.xlsx` (aba "ERPs by country"), na atualização macro diária.
+  - Séries gravadas: prêmio do mercado maduro, prêmio dos EUA, prêmio de risco país e spread de default do Brasil, datados na atualização da planilha.
+  - Os betas setoriais (`.xls`) não entraram, porque exigiriam uma dependência nova (xlrd). O beta vem da regressão contra o Ibovespa/SPY.
 
 ## Regras transversais
 

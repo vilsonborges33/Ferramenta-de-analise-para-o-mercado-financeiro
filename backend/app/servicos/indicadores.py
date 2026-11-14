@@ -543,6 +543,8 @@ def recalcular(sessao: Session, tickers: list[str] | None = None) -> int:
             sessao.rollback()
             log.exception("indicadores de %s falharam", ativo.ticker)
             falhas.append(ativo.ticker)
+    from app.servicos.ranking import limpar_cache  # import local: ranking não depende do cálculo
+    limpar_cache()  # rankings voltam a usar os números novos já no próximo pedido
     if falhas:
         log.error("recálculo concluído com falha em %d ativo(s): %s", len(falhas), ", ".join(falhas[:20]))
     return total

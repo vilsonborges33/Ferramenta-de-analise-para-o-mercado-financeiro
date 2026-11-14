@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ArteHero, EmblemaMetodo, Icone } from "@/componentes/Arte";
+import { EmblemaMetodo, Icone } from "@/componentes/Arte";
+import { ArteHeroAoVivo } from "@/componentes/ArteHeroAoVivo";
 import { Monograma } from "@/componentes/Monograma";
 import { buscar } from "@/lib/api";
 import { formatarData } from "@/lib/formato";
@@ -90,7 +91,7 @@ export default async function Inicio() {
               <Link href="/metodologia" className="pilula px-4 py-2 font-medium">Como é calculado</Link>
             </div>
           </div>
-          <ArteHero className="w-full" />
+          <ArteHeroAoVivo className="w-full" />
         </div>
       </section>
 

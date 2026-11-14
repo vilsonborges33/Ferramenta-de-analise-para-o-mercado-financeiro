@@ -99,7 +99,9 @@ export function Proventos({ carteira, versao }: { carteira: number; versao: numb
 type Otim = { aviso: string; motivo?: string; tickers: string[]; periodo: { inicio: string; fim: string; pregoes: number };
   taxa_livre_risco: number; correlacao: number[][]; correlacao_media: number | null; contribuicao_risco: Record<string, number>;
   carteiras: { nome: string; pesos: Record<string, number>; retorno: number; volatilidade: number; sharpe: number | null }[];
-  fronteira: { retorno: number; volatilidade: number }[]; numero_efetivo: number | null; metodologias: string[] };
+  fronteira: { retorno: number; volatilidade: number }[]; numero_efetivo: number | null; metodologias: string[];
+  all_weather?: { classes: { classe: string; nome: string; peso: number; alvo: number; atual: number; diferenca: number }[];
+    observacao: string } };
 
 export function Otimizador({ carteira, versao }: { carteira: number; versao: number }) {
   const [anos, setAnos] = useState(2);
@@ -164,6 +166,26 @@ export function Otimizador({ carteira, versao }: { carteira: number; versao: num
         <div><h3 className="text-sm font-medium">Correlação dos retornos diários (Dalio)</h3><Grafico opcao={calor} altura="h-72" rotulo="Matriz de correlação" />
           <p className="suave text-xs">Correlação média: {formatarValor(dados.correlacao_media, "x")} · número efetivo de ativos: {formatarValor(dados.numero_efetivo, "x")}</p></div>
       </div>
+      {dados.all_weather && (
+        <div className="overflow-x-auto">
+          <h3 className="text-sm font-medium">All Weather (Dalio) — referência para o patrimônio atual</h3>
+          <table className="mt-1 w-full text-sm">
+            <thead><tr className="suave text-xs"><th className="text-left">Classe</th><th className="text-right">Peso</th>
+              <th className="text-right">Alvo</th><th className="text-right">Na carteira</th><th className="text-right">Diferença</th></tr></thead>
+            <tbody>
+              {dados.all_weather.classes.map((c) => (
+                <tr key={c.classe} className="border-t">
+                  <td className="py-1">{c.nome}</td><td className="mono text-right">{formatarValor(c.peso, "%")}</td>
+                  <td className="mono text-right">{formatarValor(c.alvo, "R$")}</td>
+                  <td className="mono text-right">{formatarValor(c.atual, "R$")}</td>
+                  <td className="mono text-right">{formatarValor(c.diferenca, "R$")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="suave text-xs">{dados.all_weather.observacao}</p>
+        </div>
+      )}
       <p className="suave flex flex-wrap gap-x-3 text-xs">Como é calculado:
         {dados.metodologias.map((m) => <Link key={m} href={`/metodologia/${m}`} className="link break-all">{m}</Link>)}</p>
     </div>

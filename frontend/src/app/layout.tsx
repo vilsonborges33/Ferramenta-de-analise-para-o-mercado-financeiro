@@ -14,6 +14,14 @@ export const metadata: Metadata = {
 // Aplica o tema salvo antes da primeira pintura (evita piscar claro→escuro).
 const SCRIPT_TEMA = `try{var t=localStorage.getItem("tema");if(t)document.documentElement.dataset.tema=t}catch(e){}`;
 
+/** Ações e FIIs da faixa: os mais negociados do pregão e depois as maiores altas e baixas, sem repetir ticker. */
+function cotacoesDaFaixa(painel: Painel) {
+  const v = painel.variacoes;
+  const vistos = new Set<string>();
+  return [...(v.mais_negociadas ?? []), ...v.acoes.altas.slice(0, 4), ...v.acoes.baixas.slice(0, 4), ...v.fiis.altas.slice(0, 2)]
+    .filter((x) => !vistos.has(x.ticker) && vistos.add(x.ticker));
+}
+
 /** Faixa de indicadores de mercado que rola no topo de todas as páginas. */
 function FaixaMercado({ painel }: { painel: Painel | null }) {
   if (!painel) return null;
@@ -21,7 +29,7 @@ function FaixaMercado({ painel }: { painel: Painel | null }) {
   const itens = [
     ...painel.macro.map((m) => ({ chave: m.id, rotulo: m.rotulo.replace(" (mais longo)", ""), valor: formatarMacro(m), variacao: m.variacao,
       titulo: `${m.fonte} — ${m.data}`, href: undefined as string | undefined })),
-    ...[...v.acoes.altas.slice(0, 4), ...v.acoes.baixas.slice(0, 4), ...v.fiis.altas.slice(0, 2)].map((x) => ({
+    ...cotacoesDaFaixa(painel).map((x) => ({
       chave: x.ticker, rotulo: x.ticker, valor: x.fechamento.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       variacao: x.variacao, titulo: `${v.fonte} — ${v.data}`, href: `/${x.classe === "FII" ? "fiis" : "acoes"}/${x.ticker}`,
     })),
@@ -46,7 +54,7 @@ function FaixaMercado({ painel }: { painel: Painel | null }) {
   });
   return (
     <div className="overflow-hidden border-b text-[0.75rem]" style={{ background: "var(--fundo-2)" }} aria-label="Indicadores de mercado">
-      <div className="faixa-rolante flex w-max gap-8 px-4 py-1.5">
+      <div className="faixa-rolante flex w-max gap-8 px-4 py-1.5" style={{ animationDuration: `${Math.max(40, itens.length * 3)}s` }}>
         {bloco(0)}
         {bloco(1)}
       </div>

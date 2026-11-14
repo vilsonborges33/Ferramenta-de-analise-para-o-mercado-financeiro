@@ -1,7 +1,12 @@
 @echo off
-REM Faz o sistema ligar sozinho quando voce entra no Windows (e buscar os dados atrasados).
+REM Faz o sistema ligar sozinho quando voce entra no Windows (e buscar os dados atrasados), sem abrir janelas:
+REM o atalho chama o iniciar-oculto.vbs, que roda o iniciar.bat escondido (registro em logs\inicio.log).
 REM Para desfazer, rode este arquivo de novo com "remover":  instalar-inicio-automatico.bat remover
-set ATALHO=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Analise de mercado.bat
+set PASTA_INICIO=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
+set ATALHO=%PASTA_INICIO%\Analise de mercado.vbs
+
+REM Versao antiga (.bat): abria uma janela do cmd a cada login. Sai em qualquer caso.
+del "%PASTA_INICIO%\Analise de mercado.bat" >nul 2>&1
 
 if "%1"=="remover" (
   del "%ATALHO%" >nul 2>&1
@@ -10,8 +15,7 @@ if "%1"=="remover" (
   exit /b 0
 )
 
-> "%ATALHO%" echo @echo off
->> "%ATALHO%" echo start "Analise de mercado" /min cmd /c ""%~dp0iniciar.bat" silencioso"
-echo Pronto. O sistema vai ligar sozinho sempre que voce entrar no Windows.
+> "%ATALHO%" echo CreateObject("WScript.Shell").Run "wscript.exe ""%~dp0iniciar-oculto.vbs""", 0, False
+echo Pronto. O sistema vai ligar sozinho, sem abrir janelas, sempre que voce entrar no Windows.
 echo (Para desfazer: instalar-inicio-automatico.bat remover)
 pause

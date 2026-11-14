@@ -69,8 +69,9 @@ def test_padronizacao_anual_e_12_meses():
 
 def test_contato_obrigatorio(monkeypatch):
     from app.config import obter_configuracao
+    monkeypatch.setattr(obter_configuracao(), "contato_sec", "")
     monkeypatch.setattr(obter_configuracao(), "contato_user_agent", "analise-mercado (contato: seu-email@exemplo.com)")
-    with pytest.raises(EsquemaInesperado, match="CONTATO_USER_AGENT"):
+    with pytest.raises(EsquemaInesperado, match="CONTATO_SEC"):
         sec_edgar.cabecalhos()
     monkeypatch.setattr(obter_configuracao(), "contato_user_agent", "analise eu@meudominio.com")
     assert sec_edgar.cabecalhos()["User-Agent"] == "analise eu@meudominio.com"
@@ -88,6 +89,7 @@ def cliente(sessao, monkeypatch):
     from app.config import obter_configuracao
     monkeypatch.setattr(obter_configuracao(), "contato_user_agent", "analise eu@meudominio.com")
     monkeypatch.setattr(obter_configuracao(), "etfs_eua", "SPY")
+    monkeypatch.setattr(obter_configuracao(), "contato_sec", "")
 
     def responder(request):
         url = str(request.url)
@@ -146,9 +148,95 @@ def test_paginas_e_metricas_dos_eua(cliente, sessao):
     assert v["premissas"]["gordon"]["crescimento"] == pytest.approx(0.025)
 
 
-def test_carteira_recusa_ativo_dos_eua(cliente):
+def test_carteira_com_ativo_dos_eua_em_reais(cliente, sessao):
+    # REIT comprado a US$ 34 com o dólar a R$ 5,50: custo e valor de R$ 187 (cotação US$ 34 no mesmo dia).
+    with lote(sessao, "BCB_SGS") as ctx:
+        sessao.add(SerieEconomica(codigo="DOLAR_VENDA", data=date(2025, 7, 29), valor=Decimal("5.5"),
+                                  **ctx.procedencia(date(2025, 7, 29))))
+    sessao.commit()
     cliente.post("/auth/registrar", json={"email": "eua@exemplo.com", "senha": "senha-forte-1"})
     cid = cliente.post("/carteiras", json={"nome": "X"}).json()["id"]
     r = cliente.post(f"/carteiras/{cid}/lancamentos", json={"ticker": "EXRT", "tipo": "COMPRA", "data": "2025-07-30",
                                                             "quantidade": 1, "preco": 34})
-    assert r.status_code == 422 and "EUA" in r.json()["detail"]
+    assert r.status_code == 201
+    resumo = cliente.get(f"/carteiras/{cid}/resumo").json()
+    assert resumo["total_custo"] == pytest.approx(187) and resumo["total_valor"] == pytest.approx(187)
+    posicao = resumo["posicoes"][0]
+    assert posicao["moeda"] == "USD" and posicao["preco"] == pytest.approx(187)  # PTAX do dia anterior (29/07)
+    assert resumo["alocacao"]["classe"] == {"REITs (EUA)": pytest.approx(1.0)}
+
+
+TICKERS_BOLSA = {"fields": ["cik", "name", "ticker", "exchange"], "data": [
+    [1234, "Exemplo REIT Inc.", "EXRT", "NYSE"],
+    [1234, "Exemplo REIT Inc.", "EXRT-P", "NYSE"],  # segunda classe da mesma empresa: fica de fora
+    [5678, "Outra Corp", "OUTR", "Nasdaq"],
+    [9999, "Balcao Corp", "BALC", "OTC"],  # balcão: fora do universo
+]}
+
+
+def test_universo_e_indice_diario():
+    u = sec_edgar.universo(TICKERS_BOLSA)
+    assert u == {"0000001234": ("EXRT", "Exemplo REIT Inc."), "0000005678": ("OUTR", "Outra Corp")}
+    with pytest.raises(EsquemaInesperado):
+        sec_edgar.universo({"fields": ["a"], "data": []})
+    indice = ("Form Type   Company Name   CIK   Date Filed   File Name\n" + "-" * 40 + "\n"
+              "10-Q        OUTRA CORP      5678     20251105   edgar/data/5678/x.txt\n"
+              "8-K         EXEMPLO REIT    1234     20251105   edgar/data/1234/y.txt\n"
+              "10-K/A      EXEMPLO REIT    1234     20251105   edgar/data/1234/z.txt\n")
+    assert sec_edgar.ciks_do_indice(indice) == {"0000005678", "0000001234"}
+
+
+def test_emissor_estrangeiro_fica_sem_balanco():
+    estrangeiro = {"facts": {"us-gaap": {k: {"units": {"USD": [dict(f, form="20-F") for f in v["units"]["USD"]]}}
+                                         for k, v in FACTS["facts"]["us-gaap"].items()}}}
+    assert sec_edgar.padronizar(estrangeiro) == []
+
+
+def test_todas_as_empresas_em_lote_e_depois_pelo_indice(sessao, monkeypatch, tmp_path):
+    import io
+    import json
+    import zipfile
+
+    from app.config import obter_configuracao
+    cfg = obter_configuracao()
+    monkeypatch.setattr(cfg, "contato_sec", "analise eu@meudominio.com")
+    monkeypatch.setattr(cfg, "tickers_eua", "")
+    monkeypatch.setattr(cfg, "etfs_eua", "SPY")
+    monkeypatch.setattr(cfg, "diretorio_dados_brutos", tmp_path)
+    pacote = io.BytesIO()
+    with zipfile.ZipFile(pacote, "w") as z:
+        z.writestr("CIK0000001234.json", json.dumps(FACTS))
+        z.writestr("CIK0000005678.json", json.dumps(FACTS))  # as duas com balanço: a 2ª rodada é incremental
+    pedidos: list[str] = []
+
+    def responder(request):
+        url = str(request.url)
+        pedidos.append(url)
+        assert request.headers["User-Agent"] == "analise eu@meudominio.com"
+        if url.endswith("company_tickers_exchange.json"):
+            return httpx.Response(200, json=TICKERS_BOLSA)
+        if url.endswith("companyfacts.zip"):
+            return httpx.Response(200, content=pacote.getvalue())
+        if "submissions/CIK0000005678" in url:
+            return httpx.Response(200, json={"name": "Outra Corp", "sic": "7372", "sicDescription": "Software"})
+        if "submissions" in url:
+            return httpx.Response(200, json={"name": "Exemplo REIT Inc.", "sic": "6798",
+                                             "sicDescription": "Real Estate Investment Trusts"})
+        if url.endswith(".idx"):
+            return httpx.Response(200, text="10-Q   EXEMPLO REIT   1234   20251105   edgar/data/1234/x.txt\n")
+        if "companyfacts/CIK0000001234" in url:
+            return httpx.Response(200, json=FACTS)
+        return httpx.Response(404)
+
+    cliente_sec = httpx.Client(transport=httpx.MockTransport(responder))
+    assert sec_edgar.ingerir(sessao, cliente=cliente_sec) == 6  # primeira vez: pacote em lote (3 períodos × 2)
+    assert any(u.endswith("companyfacts.zip") for u in pedidos)
+    tickers = {t: (c, a) for t, c, a in sessao.execute(select(Ativo.ticker, Ativo.classe, Ativo.ativo))}
+    assert tickers["EXRT"] == ("REIT", True) and tickers["OUTR"] == ("STOCK", True)
+    assert "EXRT-P" not in tickers and "BALC" not in tickers
+    assert sessao.scalar(select(Empresa.setor).where(Empresa.cik == "0000001234")) == "Real Estate Investment Trusts"
+
+    pedidos.clear()
+    assert sec_edgar.ingerir(sessao, cliente=cliente_sec) == 3  # depois: só quem arquivou 10-K/10-Q
+    assert not any(u.endswith("companyfacts.zip") for u in pedidos)
+    assert any("companyfacts/CIK0000001234" in u for u in pedidos)

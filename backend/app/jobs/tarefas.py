@@ -29,6 +29,7 @@ from app.ingestao import (
     cvm_demonstracoes,
     cvm_fii,
     cvm_fii_trimestral,
+    damodaran,
     fnet_rendimentos,
     sec_edgar,
     tesouro,
@@ -72,6 +73,27 @@ def demonstracoes(anos: list[int]) -> None:
     _executar("padronização", padronizar_todas)
 
 
+ANOS_HISTORICO_LONGO = 15  # DFP desde ~2011: 10 anos de lucro e LPA (checklist de Graham, Lynch, Siegel)
+
+
+def anos_sem_dfp(sessao, anos: list[int]) -> list[int]:
+    """Anos da lista sem nenhuma DFP baixada com sucesso."""
+    urls = set(sessao.scalars(select(LoteIngestao.arquivo_origem).join(Fonte, Fonte.id == LoteIngestao.fonte_id)
+                              .where(Fonte.codigo == "CVM_DFP", LoteIngestao.status == "concluido")))
+    return [a for a in anos if not any(f"dfp_cia_aberta_{a}.zip" in (u or "") for u in urls)]
+
+
+def historico_longo() -> None:
+    """Só as DFP (anuais) dos anos antigos que ainda faltam; os trimestres antigos não são usados."""
+    hoje = date.today().year
+    with FabricaSessao() as sessao:
+        faltam = anos_sem_dfp(sessao, list(range(hoje - ANOS_HISTORICO_LONGO, hoje - ANOS_CARGA_INICIAL)))
+    for ano in faltam:
+        _executar(f"DFP {ano} (histórico longo)", cvm_demonstracoes.ingerir, "DFP", ano)
+    if faltam:
+        _executar("padronização", padronizar_todas)
+
+
 def fiis(anos: list[int]) -> None:
     for ano in anos:
         _executar(f"FII mensal {ano}", cvm_fii.ingerir, ano)
@@ -100,7 +122,9 @@ def indices(intervalo: str = "5d") -> None:
 def cotacoes_do_dia(dia: date | None = None) -> None:
     indices()
     if usa_yahoo():
-        _executar("Yahoo Finance (últimos dias)", yahoo.ingerir, None, "5d")
+        # B3 primeiro: as milhares de empresas dos EUA (D-044) não atrasam os números daqui.
+        _executar("Yahoo Finance (últimos dias)", yahoo.ingerir, None, "5d", None, 0.4, "B3")
+        _executar("Yahoo Finance (EUA, últimos dias)", yahoo.ingerir, None, "5d", None, 0.2, "US")
         return
     dia = dia or date.today()
     _executar(f"COTAHIST {dia}", cotahist.ingerir_dia, dia)
@@ -120,6 +144,7 @@ def macro() -> None:
     _executar("Treasury 10 anos (EUA)", us_treasury.ingerir)
     _executar("BCB SGS", bcb_sgs.ingerir_todas)
     _executar("Tesouro", tesouro.ingerir, date.today() - timedelta(days=3650))
+    _executar("Damodaran (prêmios de risco)", damodaran.ingerir)
 
 
 def eua() -> None:
@@ -161,10 +186,11 @@ def fiis_sem_ticker(sessao) -> bool:
     return total > 0 and ligados < total / 2
 
 
-def tickers_sem_cotacao(sessao) -> list[str]:
+def tickers_sem_cotacao(sessao, mercado: str = "B3") -> list[str]:
+    classes = ("STOCK", "REIT", "ETF") if mercado == "US" else ("ACAO", "UNIT", "FII")
     com_cotacao = select(CotacaoDiaria.ativo_id).distinct()
     return list(sessao.scalars(select(Ativo.ticker).where(
-        Ativo.ativo.is_(True), Ativo.classe.in_(("ACAO", "UNIT", "FII")), Ativo.id.not_in(com_cotacao))))
+        Ativo.ativo.is_(True), Ativo.classe.in_(classes), Ativo.id.not_in(com_cotacao))))
 
 
 def faltam_proventos(sessao) -> bool:
@@ -199,9 +225,14 @@ def completar_carga(forcar: bool = False) -> None:
             sem_proventos = forcar or faltam_proventos(sessao)
             sem_ticker_fii = fiis_sem_ticker(sessao)
             sem_imoveis = sessao.scalar(select(func.count()).select_from(FiiImovel)) == 0
-            sem_indices = not sessao.scalar(select(func.count()).select_from(SerieEconomica)
-                                            .where(SerieEconomica.codigo == "IBOV"))
-        if not (sem_padronizacao or sem_cotacoes or sem_proventos or sem_ticker_fii or sem_imoveis or sem_indices):
+            # Menos de ~1 ano de Ibovespa: o histórico nunca foi baixado (beta, rentabilidade da carteira).
+            sem_indices = (sessao.scalar(select(func.count()).select_from(SerieEconomica)
+                                         .where(SerieEconomica.codigo == "IBOV")) or 0) < 200
+            hoje = date.today().year
+            antigos = list(range(hoje - ANOS_HISTORICO_LONGO, hoje - ANOS_CARGA_INICIAL))
+            sem_historico = bool(anos_sem_dfp(sessao, antigos))
+        if not (sem_padronizacao or sem_cotacoes or sem_proventos or sem_ticker_fii or sem_imoveis or sem_indices
+                or sem_historico):
             return
         ano = date.today().year
         if sem_indices:  # Ibovespa e IFIX para comparar a rentabilidade da carteira (Fase 6)
@@ -215,6 +246,8 @@ def completar_carga(forcar: bool = False) -> None:
         if sem_padronizacao:
             log.info("%s empresa(s) com balanço sem períodos organizados: reorganizando", sem_padronizacao)
             _passo("padronização", _executar, "padronização", padronizar_todas)
+        if sem_historico:  # DFP antigas (10 anos de lucro e LPA para Graham, Lynch e Siegel)
+            _passo("histórico longo", historico_longo)
         if sem_cotacoes:
             log.info("faltam cotações: baixando de %s a %s", ano - ANOS_CARGA_INICIAL, ano)
             _passo("cotações", cotacoes_historicas, list(range(ano - ANOS_CARGA_INICIAL, ano + 1)))
@@ -310,13 +343,14 @@ def por_em_dia(hoje: date | None = None, agora: datetime | None = None) -> list[
         feitos.append("macro")
     if feitos:  # números novos na tela antes dos downloads demorados da CVM
         _passo("indicadores", indicadores)
-    if _desatualizada(sec_em, agora):  # EUA: balanços na SEC e, na primeira vez, histórico de cotações
-        primeira = sec_em is None
+    if _desatualizada(sec_em, agora):  # EUA: balanços na SEC e histórico de cotações de quem ainda não tem
         _passo("SEC EDGAR", eua)
-        if primeira and usa_yahoo():
+        if usa_yahoo():
             with FabricaSessao() as sessao:
-                novos = [t for (t,) in sessao.execute(select(Ativo.ticker).where(Ativo.mercado == "US"))]
-            _passo("cotações EUA", _executar, "Yahoo Finance (EUA)", yahoo.ingerir, novos, f"{ANOS_CARGA_INICIAL + 1}y")
+                novos = tickers_sem_cotacao(sessao, mercado="US")
+            if novos:
+                _passo("cotações EUA", _executar, "Yahoo Finance (EUA, histórico)", yahoo.ingerir, novos,
+                       f"{ANOS_CARGA_INICIAL + 1}y")
         _passo("indicadores", indicadores)
         feitos.append("eua")
     if _desatualizada(cvm_em, agora) or _desatualizada(fii_em, agora):

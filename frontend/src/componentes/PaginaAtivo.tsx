@@ -4,13 +4,14 @@ import { Monograma } from "@/componentes/Monograma";
 import { CartoesRisco } from "@/componentes/CartoesRisco";
 import { PainelValuation } from "@/componentes/PainelValuation";
 import { SecaoDividendos } from "@/componentes/SecaoDividendos";
+import { SecaoAnalises } from "@/componentes/SecaoAnalises";
 import { SecaoHistorico } from "@/componentes/SecaoHistorico";
 import { PainelGordonFii, SecoesFundo } from "@/componentes/SecoesFundo";
 import { CustosEtf } from "@/componentes/CustosEtf";
 import { GraficoCotacao } from "@/componentes/GraficoCotacao";
-import { MoedaProvider } from "@/lib/moeda";
+import { MoedaProvider, SeletorMoeda, ValorMoeda } from "@/lib/moeda";
 import { Numero } from "@/componentes/Numero";
-import { formatarData, formatarValor, nomeFonte } from "@/lib/formato";
+import { formatarData, nomeFonte } from "@/lib/formato";
 import type { Detalhe } from "@/lib/tipos";
 
 const METODOS_DE_PRECO = ["Graham", "Bazin", "Lynch", "Greenblatt"];
@@ -27,7 +28,7 @@ const SECOES_FII = [
 ] as const;
 const SECOES_ACAO = [
   ["cotacao", "Cotação"], ["valuation", "Valuation"], ["dividendos", "Dividendos"], ["indicadores", "Indicadores"],
-  ["historico", "Histórico"], ["empresa", "Empresa"],
+  ["analises", "Análises"], ["historico", "Histórico"], ["empresa", "Empresa"],
 ] as const;
 const ORDEM_GRUPOS = ["Valuation", "REIT", "Graham", "Bazin", "Lynch", "Greenblatt", "Rentabilidade", "Endividamento",
   "Crescimento", "Mercado", "Base"];
@@ -97,10 +98,11 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
           </div>
           {ativo.cotacao && (
             <div className="text-right">
-              <div className="mono text-3xl font-bold">{formatarValor(ativo.cotacao.valor, "R$/ação", moeda)}</div>
+              <div className="mono text-3xl font-bold"><ValorMoeda valor={ativo.cotacao.valor} unidade="R$/ação" /></div>
               <div className="text-xs suave">
                 fechamento de {formatarData(ativo.cotacao.data)} · {nomeFonte(ativo.cotacao.fonte)}
               </div>
+              {eua && <div className="mt-1 flex justify-end"><SeletorMoeda /></div>}
             </div>
           )}
         </div>
@@ -182,6 +184,12 @@ export function PaginaAtivo({ ativo }: { ativo: Detalhe }) {
       </Secao>
 
       {fii && <SecoesFundo ticker={ativo.ticker} />}
+
+      {acao && (
+        <Secao id="analises" titulo="Análises dos livros">
+          <SecaoAnalises ticker={ativo.ticker} />
+        </Secao>
+      )}
 
       {acao && (
         <Secao id="historico" titulo="Histórico anual">

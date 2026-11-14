@@ -30,6 +30,8 @@ from app.metodologias.registro import POR_ID
 from app.servicos.historico import _codigos_fonte_proventos
 from app.servicos.ranking import AVISO_NAO_RECOMENDACAO
 
+RETENCAO_EUA = 0.30  # imposto retido nos EUA sobre dividendos de não residentes (Brasil não tem tratado)
+NOMES_CLASSE = {"FII": "FIIs", "STOCK": "Ações EUA", "REIT": "REITs (EUA)", "ETF": "ETFs (EUA)"}
 AVISO_OTIMIZADOR = ("Pesos calculados com retornos e covariâncias históricas, que não se repetem necessariamente. "
                     "Ferramenta de estudo; não constitui recomendação de investimento.")
 
@@ -41,16 +43,60 @@ def _lancamentos(sessao: Session, carteira_id: int) -> list[tuple[Lancamento, st
                                .order_by(Lancamento.data, Lancamento.id)))
 
 
+class Cambio:
+    """Dólar comercial de venda (PTAX, Banco Central) de cada dia: leva os ativos dos EUA a reais (D-044).
+
+    Sem cotação no dia (fim de semana, feriado), vale a do último dia útil anterior.
+    """
+
+    def __init__(self, sessao: Session):
+        self.sessao = sessao
+        self._dias: list[date] | None = None
+        self._valores: list[float] = []
+
+    def em(self, dia: date) -> float | None:
+        if self._dias is None:
+            pontos = self.sessao.execute(select(SerieEconomica.data, SerieEconomica.valor)
+                                         .where(SerieEconomica.codigo == "DOLAR_VENDA").order_by(SerieEconomica.data))
+            self._dias, self._valores = [], []
+            for d, v in pontos:
+                self._dias.append(d)
+                self._valores.append(float(v))
+        i = bisect_right(self._dias, dia)
+        return self._valores[i - 1] if i else None
+
+
+def _moedas(sessao: Session, ativo_ids: list[int]) -> dict[int, str]:
+    return dict(sessao.execute(select(Ativo.id, Ativo.moeda).where(Ativo.id.in_(ativo_ids))).all())
+
+
 def movimentos(sessao: Session, carteira_id: int) -> list[mc.Movimento]:
-    return [mc.Movimento(lan.data, ticker, lan.tipo, float(lan.quantidade), float(lan.preco or 0),
-                         float(lan.taxas or 0)) for lan, ticker, _ in _lancamentos(sessao, carteira_id)]
+    """Lançamentos em reais: preço e taxas de ativos dos EUA (informados em US$) pela PTAX da data."""
+    lancamentos = _lancamentos(sessao, carteira_id)
+    moedas = _moedas(sessao, list({lan.ativo_id for lan, _, _ in lancamentos}))
+    cambio = Cambio(sessao)
+    saida = []
+    for lan, ticker, _ in lancamentos:
+        fator = (cambio.em(lan.data) or 0.0) if moedas.get(lan.ativo_id) == "USD" else 1.0
+        saida.append(mc.Movimento(lan.data, ticker, lan.tipo, float(lan.quantidade), float(lan.preco or 0) * fator,
+                                  float(lan.taxas or 0) * fator))
+    return saida
 
 
 def _ativos(sessao: Session, tickers: list[str]) -> dict[str, Ativo]:
     return {a.ticker: a for a in sessao.scalars(select(Ativo).where(Ativo.ticker.in_(tickers)))}
 
 
+def _em_reais(sessao: Session, series: dict[int, list[tuple[date, float]]]) -> dict[int, list[tuple[date, float]]]:
+    moedas, cambio = _moedas(sessao, list(series)), Cambio(sessao)
+    for ativo_id, serie in series.items():
+        if moedas.get(ativo_id) == "USD":
+            series[ativo_id] = [(d, p * c) for d, p in serie if (c := cambio.em(d))]
+    return series
+
+
 def _cotacoes(sessao: Session, ativo_ids: list[int], desde: date | None = None) -> dict[int, list[tuple[date, float]]]:
+    """Fechamentos em reais (ativos dos EUA convertidos pelo dólar do próprio dia)."""
     consulta = select(CotacaoDiaria.ativo_id, CotacaoDiaria.data, CotacaoDiaria.fechamento).where(
         CotacaoDiaria.ativo_id.in_(ativo_ids)).order_by(CotacaoDiaria.data)
     if desde:
@@ -58,15 +104,15 @@ def _cotacoes(sessao: Session, ativo_ids: list[int], desde: date | None = None) 
     saida: dict[int, list[tuple[date, float]]] = defaultdict(list)
     for a, d, f in sessao.execute(consulta):
         saida[a].append((d, float(f)))
-    return saida
+    return _em_reais(sessao, saida)
 
 
 def _ultimas(sessao: Session, ativo_ids: list[int]) -> dict[int, list[tuple[date, float]]]:
-    """Último fechamento de cada ativo (no formato de `_cotacoes`, com um ponto só)."""
+    """Último fechamento de cada ativo em reais (no formato de `_cotacoes`, com um ponto só)."""
     linhas = sessao.execute(select(CotacaoDiaria.ativo_id, CotacaoDiaria.data, CotacaoDiaria.fechamento)
                             .where(CotacaoDiaria.ativo_id.in_(ativo_ids)).distinct(CotacaoDiaria.ativo_id)
                             .order_by(CotacaoDiaria.ativo_id, CotacaoDiaria.data.desc()))
-    return {a: [(d, float(f))] for a, d, f in linhas}
+    return _em_reais(sessao, {a: [(d, float(f))] for a, d, f in linhas})
 
 
 def _preco_em(serie: list[tuple[date, float]], dia: date) -> float | None:
@@ -75,8 +121,12 @@ def _preco_em(serie: list[tuple[date, float]], dia: date) -> float | None:
 
 
 def _proventos(sessao: Session, ativos: dict[str, Ativo]) -> dict[str, list[tuple[date, date, float, str]]]:
-    """Por ticker: (data-com, data do crédito, valor líquido por cota, tipo), só da fonte configurada."""
+    """Por ticker: (data-com, data do crédito, valor líquido por cota em reais, tipo), só da fonte configurada.
+
+    Dividendos dos EUA: 30% retidos na fonte para residentes no Brasil e conversão pela PTAX do crédito.
+    """
     aliquota = POR_ID["basico.dy"].parametros[0].padrao
+    cambio = Cambio(sessao)
     saida: dict[str, list] = defaultdict(list)
     for ticker, ativo in ativos.items():
         codigos = _codigos_fonte_proventos(ativo.classe)
@@ -85,6 +135,8 @@ def _proventos(sessao: Session, ativos: dict[str, Ativo]) -> dict[str, list[tupl
                                 .order_by(Provento.data_com)):
             liquido = ib.provento_liquido(float(p.valor_por_cota), p.tipo, aliquota).valor
             credito = p.data_pagamento or p.data_ex or p.data_com
+            if ativo.moeda == "USD":
+                liquido = liquido * (1 - RETENCAO_EUA) * (cambio.em(credito) or 0.0)
             saida[ticker].append((p.data_com, credito, liquido, p.tipo))
     return saida
 
@@ -114,7 +166,8 @@ def resumo(sessao: Session, carteira: Carteira, hoje: date | None = None) -> dic
             total_valor += valor or 0.0
             total_custo += custo
         linhas.append({
-            "ticker": ticker, "classe": ativo.classe, "nome": ativo.empresa.nome if ativo.empresa else None,
+            "ticker": ticker, "classe": ativo.classe, "moeda": ativo.moeda,
+            "nome": ativo.empresa.nome if ativo.empresa else None,
             "setor": ativo.empresa.setor if ativo.empresa else segmentos.get(ativo.id),
             "quantidade": p.quantidade, "preco_medio": pm, "preco_medio_ajustado": ativo.id in ajustes,
             "preco": preco, "data_preco": serie[-1][0].isoformat() if serie else None, "valor": valor,
@@ -128,7 +181,7 @@ def resumo(sessao: Session, carteira: Carteira, hoje: date | None = None) -> dic
         lin["peso"] = (lin["valor"] or 0) / total_valor if total_valor else None
     por_classe, por_setor = defaultdict(float), defaultdict(float)
     for lin in abertas:
-        por_classe["FIIs" if lin["classe"] == "FII" else "Ações"] += lin["valor"] or 0
+        por_classe[NOMES_CLASSE.get(lin["classe"], "Ações")] += lin["valor"] or 0
         por_setor[lin["setor"] or "Sem setor"] += lin["valor"] or 0
     return {
         "carteira": {"id": carteira.id, "nome": carteira.nome}, "posicoes": abertas,
@@ -141,7 +194,8 @@ def resumo(sessao: Session, carteira: Carteira, hoje: date | None = None) -> dic
                      "classe": mc.alocacao(dict(por_classe)), "setor": mc.alocacao(dict(por_setor))},
         "criterios": "Preço médio com taxas (método da Receita); vendas não alteram o preço médio. Proventos "
                      "líquidos pela quantidade detida na data-com. Yield on cost = proventos por cota dos últimos "
-                     "12 meses ÷ preço médio.",
+                     "12 meses ÷ preço médio. Ativos dos EUA em reais: preço e taxas pela PTAX de venda da "
+                     "data do lançamento, cotações pela PTAX de cada dia e dividendos com 30% retidos nos EUA.",
     }
 
 
@@ -257,6 +311,25 @@ def proventos_recebidos(sessao: Session, carteira: Carteira) -> dict:
                         "de pagamento (ou na data-ex quando a fonte não informa o pagamento)."}
 
 
+NOMES_ALL_WEATHER = {"acoes": "Ações (inclui FIIs, REITs e ETFs de ações)", "titulos_longos": "Títulos longos",
+                     "titulos_intermediarios": "Títulos intermediários", "ouro": "Ouro", "commodities": "Commodities"}
+
+
+def _all_weather(patrimonio: float) -> dict:
+    """Referência de Dalio: quanto de cada classe para o patrimônio de hoje, e quanto a carteira já tem.
+
+    A carteira só registra ações, FIIs e ativos dos EUA: tudo entra em "Ações"; as demais classes ficam zeradas.
+    """
+    r = dalio.alocacao_all_weather(patrimonio)
+    atual = {"acoes": patrimonio}
+    return {"classes": [{"classe": k, "nome": NOMES_ALL_WEATHER[k], "peso": dalio.ALL_WEATHER[k],
+                         "alvo": r.detalhes["alvos"][k], "atual": atual.get(k, 0.0),
+                         "diferenca": r.detalhes["alvos"][k] - atual.get(k, 0.0)} for k in dalio.ALL_WEATHER],
+            "patrimonio": patrimonio,
+            "observacao": "Pesos de referência do All Weather (30/40/15/7,5/7,5). A carteira registra só renda "
+                          "variável; títulos, ouro e commodities aparecem com o valor que faltaria comprar."}
+
+
 def otimizador(sessao: Session, carteira: Carteira, anos: int = 2, hoje: date | None = None) -> dict:
     hoje = hoje or date.today()
     abertas = {t: p for t, p in mc.consolidar(movimentos(sessao, carteira.id)).items() if p.quantidade > 0}
@@ -305,7 +378,9 @@ def otimizador(sessao: Session, carteira: Carteira, anos: int = 2, hoje: date | 
         "fronteira": [{"retorno": p["retorno"], "volatilidade": p["volatilidade"]}
                       for p in fronteira.detalhes.get("pontos", [])],
         "numero_efetivo": portfolio.numero_efetivo_ativos(pesos_atuais).valor,
-        "metodologias": ["portfolio.fronteira", "portfolio.sharpe", "dalio.correlacao", "dalio.paridade_risco"],
+        "all_weather": _all_weather(float(valores.sum())),
+        "metodologias": ["portfolio.fronteira", "portfolio.sharpe", "dalio.correlacao", "dalio.paridade_risco",
+                         "dalio.all_weather"],
     }
 
 

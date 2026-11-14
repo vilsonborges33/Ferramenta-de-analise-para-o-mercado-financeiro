@@ -7,7 +7,8 @@ export type Variacao = { ticker: string; classe: string; fechamento: number; var
 export type GrupoVariacoes = { altas: Variacao[]; baixas: Variacao[]; positivas: number; negativas: number; total: number };
 export type Painel = {
   macro: ItemMacro[];
-  variacoes: { data: string | null; fonte: string; acoes: GrupoVariacoes; fiis: GrupoVariacoes };
+  variacoes: { data: string | null; fonte: string; acoes: GrupoVariacoes; fiis: GrupoVariacoes;
+    mais_negociadas?: Variacao[] };
 };
 
 /** O painel nunca derruba a página: sem API, a faixa e os cartões simplesmente não aparecem. */

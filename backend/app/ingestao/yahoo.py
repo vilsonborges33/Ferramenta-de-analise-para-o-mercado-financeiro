@@ -127,12 +127,14 @@ MAXIMO_FALHAS_SEGUIDAS = 25
 
 
 def ingerir(sessao, tickers: list[str] | None = None, intervalo: str = "5d", cliente=None,
-            pausa: float = 0.4) -> int:
+            pausa: float = 0.4, mercado: str | None = None) -> int:
     """Cotações e dividendos de cada ação/unit/FII ativo. Falhas isoladas não param os demais.
 
-    `intervalo`: "5d" na atualização diária, "6y" na carga inicial.
+    `intervalo`: "5d" na atualização diária, "6y" na carga inicial. `mercado` ("B3" ou "US") limita a um mercado.
     """
     consulta = select(Ativo).where(Ativo.ativo.is_(True), Ativo.classe.in_(CLASSES))
+    if mercado:
+        consulta = consulta.where(Ativo.mercado == mercado)
     if tickers:
         consulta = consulta.where(Ativo.ticker.in_([t.upper() for t in tickers]))
     ativos = [(a.id, a.ticker, a.classe, a.mercado) for a in sessao.scalars(consulta)]

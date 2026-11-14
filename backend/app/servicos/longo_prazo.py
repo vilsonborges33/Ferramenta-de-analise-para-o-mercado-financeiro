@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.db.modelos import Ativo, DemonstracaoPadronizada, IndicadorCalculado, SerieEconomica
 from app.metodologias import siegel
+from app.servicos.fundos import taxa_base
 from app.servicos.historico import serie_retorno_total
 
 LIMITE_ATIVOS = 4
@@ -56,7 +57,9 @@ def _ipca_mensal(sessao: Session, desde: date) -> dict[str, float]:
     return saida
 
 
-def _cape(sessao: Session, ativo: Ativo, ipca: dict[str, float], anos: int) -> dict:
+def _cape(sessao: Session, ativo: Ativo, ipca: dict[str, float], anos: int,
+          juro: tuple[float | None, str | None] = (None, None)) -> dict:
+    """CAPE e prêmio de risco de Siegel (1 ÷ CAPE − juro real do Tesouro IPCA+ mais longo)."""
     if ativo.empresa_id is None or ativo.classe == "FII":
         return {"valor": None, "motivo_indisponivel": "CAPE só se aplica a ações (lucro da empresa)"}
     vm = sessao.scalar(select(IndicadorCalculado.valor).where(IndicadorCalculado.ativo_id == ativo.id,
@@ -78,12 +81,20 @@ def _cape(sessao: Session, ativo: Ativo, ipca: dict[str, float], anos: int) -> d
         lucros.append(real)
         usados.append({"ano": p.data_fim.year, "lucro_nominal": lucro, "lucro_real": real})
     r = siegel.cape(None if vm is None else float(vm), lucros, anos)
+    juro_real, descricao = juro
+    premio = siegel.premio_risco_acoes(r.valor, juro_real)
     return {"valor": r.valor, "motivo_indisponivel": r.motivo_indisponivel, "anos": anos, "lucros": usados,
-            "valor_mercado": None if vm is None else float(vm), "lucro_real_medio": r.detalhes.get("lpa_medio")}
+            "valor_mercado": None if vm is None else float(vm), "lucro_real_medio": r.detalhes.get("lpa_medio"),
+            "premio_risco": {"valor": premio.valor, "motivo_indisponivel": premio.motivo_indisponivel,
+                             "earnings_yield_real": 1 / r.valor if r.valor else None, "juro_real": juro_real,
+                             "descricao_juro": descricao, "metrica": "siegel.premio_risco"}}
 
 
 def longo_prazo(sessao: Session, tickers: list[str], desde: date, anos_cape: int = 10) -> dict:
     ipca = _ipca_mensal(sessao, desde)
+    # O CAPE deflaciona lucros de até `anos_cape` anos atrás, antes do início do gráfico.
+    ipca_cape = _ipca_mensal(sessao, date(date.today().year - anos_cape - 1, 1, 1))
+    juro = taxa_base(sessao, "ipca")
     candidatos: list[tuple[str, str, dict[str, float], str]] = []
     capes = {}
     classes: dict[str, str] = {}
@@ -95,7 +106,7 @@ def longo_prazo(sessao: Session, tickers: list[str], desde: date, anos_cape: int
         diario = serie_retorno_total(sessao, ativo, desde)
         if diario:
             candidatos.append((ativo.ticker, "ativo", _fim_de_mes(diario), "Yahoo Finance (cotações e proventos)"))
-        capes[ativo.ticker] = _cape(sessao, ativo, ipca, anos_cape)
+        capes[ativo.ticker] = _cape(sessao, ativo, ipca_cape, anos_cape, juro)
     cdi = _fim_de_mes(_indice_diario(_serie(sessao, "CDI", desde)))
     if cdi:
         candidatos.append(("CDI", "indice", cdi, "Banco Central (SGS 12)"))

@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { formatarData, formatarValor } from "@/lib/formato";
 
+/** Tickers dos EUA não terminam em número (AAPL, BRK-B); os da B3, sim (PETR4, TAEE11). */
+const ehEua = (ticker: string) => ticker.trim() !== "" && !/\d$/.test(ticker.trim());
+
 type Lancamento = { id: number; ticker: string; tipo: string; data: string; quantidade: number; preco: number;
   taxas: number; origem: string };
 const TIPOS = [["COMPRA", "Compra"], ["VENDA", "Venda"], ["DESDOBRAMENTO", "Desdobramento (ações recebidas)"],
@@ -70,7 +73,7 @@ export function Lancamentos({ carteira, aoMudar }: { carteira: number; aoMudar: 
           <input required type="date" className="campo w-full" aria-label="Data" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} /></label>
         <label className="block"><span className="suave text-xs">Quantidade</span>
           <input required inputMode="decimal" className="campo w-full text-right" aria-label="Quantidade" value={form.quantidade} onChange={(e) => setForm({ ...form, quantidade: e.target.value })} /></label>
-        <label className="block"><span className="suave text-xs">Preço (R$)</span>
+        <label className="block"><span className="suave text-xs">Preço ({ehEua(form.ticker) ? "US$, convertido pela PTAX do dia" : "R$"})</span>
           <input inputMode="decimal" className="campo w-full text-right" aria-label="Preço" value={form.preco} disabled={!["COMPRA", "VENDA"].includes(form.tipo)} onChange={(e) => setForm({ ...form, preco: e.target.value })} /></label>
         <label className="block"><span className="suave text-xs">Taxas (R$)</span>
           <input inputMode="decimal" className="campo w-full text-right" aria-label="Taxas" value={form.taxas} onChange={(e) => setForm({ ...form, taxas: e.target.value })} /></label>
@@ -94,7 +97,7 @@ export function Lancamentos({ carteira, aoMudar }: { carteira: number; aoMudar: 
               <tr key={l.id} className="border-t text-right">
                 <td className="py-1 text-left">{formatarData(l.data)}</td><td className="text-left">{l.ticker}</td>
                 <td className="text-left">{l.tipo.toLowerCase()}</td><td>{l.quantidade.toLocaleString("pt-BR")}</td>
-                <td>{l.preco ? formatarValor(l.preco, "R$/ação") : "—"}</td><td>{l.taxas ? formatarValor(l.taxas, "R$/ação") : "—"}</td>
+                <td>{l.preco ? formatarValor(l.preco, "R$/ação", ehEua(l.ticker) ? "USD" : "BRL") : "—"}</td><td>{l.taxas ? formatarValor(l.taxas, "R$/ação", ehEua(l.ticker) ? "USD" : "BRL") : "—"}</td>
                 <td className="suave text-left">{l.origem === "b3" ? "B3" : "manual"}</td>
                 <td><button type="button" className="suave hover:underline" aria-label={`Apagar lançamento ${l.id}`} onClick={() => apagar(l.id)}>apagar</button></td>
               </tr>

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.sessao import obter_sessao
 from app.ingestao.bcb_sgs import SERIES
 from app.metodologias.registro import POR_ID, TODAS
-from app.servicos import consultas, historico, ranking
+from app.servicos import analises, consultas, historico, ranking
 from app.servicos.ranking import METODOS, Parametros
 
 rotas = APIRouter(tags=["dados"])
@@ -75,6 +75,12 @@ def dividendos(ticker: str, anos: int = Query(10, ge=1, le=20), sessao: Session 
 @rotas.get("/ativos/{ticker}/risco")
 def risco(ticker: str, sessao: Session = Depends(obter_sessao)):
     return _ou_404(historico.risco(sessao, ticker))
+
+
+@rotas.get("/ativos/{ticker}/analises")
+def analises_do_ativo(ticker: str, sessao: Session = Depends(obter_sessao)):
+    """Graham revisado e checklist, Bazin, Lynch, Siegel, Bogle, beta, fatores e custo de capital (Damodaran)."""
+    return _ou_404(analises.analises(sessao, ticker))
 
 
 @rotas.get("/metodologias")

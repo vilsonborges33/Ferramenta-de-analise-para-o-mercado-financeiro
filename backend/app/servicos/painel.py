@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db.modelos import SerieEconomica, TituloTesouroTaxa
 
+MAIS_NEGOCIADAS_ACOES, MAIS_NEGOCIADAS_FIIS = 15, 5
 LIQUIDEZ_MINIMA = {"ACAO": 5_000_000, "UNIT": 5_000_000, "FII": 1_000_000}
 VARIACAO_MAXIMA = 0.5  # acima disso, quase sempre é desdobramento/grupamento sem ajuste, não variação real
 
@@ -103,9 +104,15 @@ def variacoes(sessao: Session, quantos: int = 6) -> dict:
             continue
         data = d
         por_grupo["fiis" if classe == "FII" else "acoes"].append(
-            {"ticker": ticker, "classe": classe, "fechamento": float(fech), "variacao": v})
+            {"ticker": ticker, "classe": classe, "fechamento": float(fech), "variacao": v, "liquidez": float(liq)})
     saida: dict = {"data": data.isoformat() if data else None, "fonte": "Yahoo Finance (fechamento)"}
+    # Faixa do topo: as mais negociadas (cotações que o usuário reconhece), além das maiores altas e baixas.
+    saida["mais_negociadas"] = [
+        {k: x[k] for k in ("ticker", "classe", "fechamento", "variacao")}
+        for grupo, n in (("acoes", MAIS_NEGOCIADAS_ACOES), ("fiis", MAIS_NEGOCIADAS_FIIS))
+        for x in sorted(por_grupo[grupo], key=lambda x: -x["liquidez"])[:n]]
     for grupo, itens in por_grupo.items():
+        itens = [{k: v for k, v in x.items() if k != "liquidez"} for x in itens]
         itens.sort(key=lambda x: x["variacao"])
         saida[grupo] = {"altas": list(reversed(itens[-quantos:])), "baixas": itens[:quantos],
                         "positivas": sum(1 for x in itens if x["variacao"] > 0),

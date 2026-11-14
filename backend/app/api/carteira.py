@@ -126,9 +126,7 @@ def lancar(carteira_id: int, novo: NovoLancamento, usuario: Usuario = Depends(us
     tipo = novo.tipo.upper()
     if tipo not in mc.TIPOS:
         raise HTTPException(422, f"tipo deve ser um de {', '.join(mc.TIPOS)}")
-    ativo = _ativo(sessao, novo.ticker)
-    if ativo.mercado != "B3":  # a carteira consolida em reais; ativos em dólar ficam para uma etapa futura
-        raise HTTPException(422, f"{ativo.ticker} é negociado nos EUA: por enquanto a carteira aceita só ativos da B3")
+    ativo = _ativo(sessao, novo.ticker)  # ativos dos EUA: preço em US$, convertido a reais pela PTAX da data (D-044)
     if tipo in ("COMPRA", "VENDA") and novo.preco <= 0:
         raise HTTPException(422, "compra e venda precisam de preço")
     _validar(sessao, c.id, [mc.Movimento(novo.data, ativo.ticker, tipo, novo.quantidade, novo.preco, novo.taxas)])

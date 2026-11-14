@@ -426,6 +426,49 @@ Usa as tabelas `carteira`, `lancamento`, `arquivo_importacao`, `preco_medio_ajus
   - Bazin pelos dividendos de 12 meses;
   - PEG clássico de Lynch.
 
+## Análises restantes e mercado dos EUA completo (11/11/2026)
+
+**D-044 — Todas as empresas dos EUA, análises dos livros por ativo e carteira em dólar** · aprovada (usuário pediu as
+implementações restantes, escolheu "todas da SEC" e o e-mail de contato)
+- **Universo dos EUA:** todas as empresas listadas na NYSE, Nasdaq e Cboe (~6 mil), sem `TICKERS_EUA` no `.env`.
+  - Um ticker por empresa (o primeiro da SEC). Classes com preços muito diferentes (BRK-A × BRK-B) dariam valor de
+    mercado errado com a soma das ações da capa.
+  - Balanços: pacote em lote na primeira carga; depois, só quem arquivou 10-K/10-Q (índice diário da SEC). Se mais de
+    40% do universo ficar sem balanço (carga interrompida), a próxima rodada refaz o lote.
+  - Emissores estrangeiros (20-F/40-F) ficam sem balanço, para não mostrar P/L errado.
+  - Histórico: 11 anos de 10-K.
+  - Cotações: Yahoo, primeiro a B3 e depois os EUA na atualização diária. Histórico de 7 anos para cada ticker novo.
+- **Contato da SEC (`CONTATO_SEC`):** e-mail informado pelo usuário, gravado só no `.env` local e enviado só nas
+  requisições à SEC. `CONTATO_USER_AGENT` (genérico) segue para CVM, Banco Central, Tesouro etc.
+- **Histórico longo da B3:** DFP desde ~2011, só as anuais, carregadas uma vez no complemento da carga. Permite 10 anos
+  de lucro e LPA (checklist de Graham, categoria de Lynch, reversão à média do P/L, CAPE de 10 anos).
+- **Análises por ativo (`/ativos/{ticker}/analises`, seção "Análises dos livros"):**
+  - Graham: fórmula revisada (Y = Selic meta ou Treasury 10 anos) e checklist do investidor defensivo. Com histórico
+    curto, os critérios ficam "indisponíveis", não reprovados.
+  - Bazin: preço teto pela média de 5 anos completos, endividamento baixo (DL/PL ≤ 1) e proventos em 5 anos seguidos.
+  - Lynch: índice e categoria.
+  - Siegel: reversão à média do P/L (P/L de cada fim de ano).
+  - Bogle: decomposição do retorno esperado, com o P/L voltando à média em 10 anos.
+  - Lo & Foerster: beta de 2 anos contra o Ibovespa ou o SPY, e percentis de valor, tamanho e momento no próprio
+    mercado.
+  - Damodaran: custo do capital próprio.
+  - Crescimento atípico (efeito de base) gera aviso em Graham revisado, Lynch e Bogle.
+- **Damodaran (nova fonte `DAMODARAN`):** `ctryprem.xlsx` (prêmio maduro, prêmio dos EUA, risco país e spread de
+  default do Brasil).
+  - Ke no Brasil = (Tesouro Prefixado longo − spread de default) + β × (ERP maduro + risco país).
+  - Ke nos EUA = Treasury 10 anos + β × ERP dos EUA.
+  - Os betas setoriais (.xls) exigiriam a dependência xlrd: ficou o beta de regressão; sem histórico, β = 1, avisado.
+- **Siegel:** prêmio de risco = 1/CAPE − juro real do Tesouro IPCA+ mais longo, na página de longo prazo. O IPCA do CAPE
+  passa a cobrir os anos dos lucros, não só o período do gráfico.
+- **Dalio:** All Weather no otimizador da carteira, com valor-alvo e diferença por classe. Só renda variável é
+  registrada; títulos, ouro e commodities aparecem com o valor que faltaria.
+- **Carteira com ativos dos EUA, consolidada em reais:**
+  - preço e taxas informados em US$, convertidos pela PTAX de venda da data;
+  - cotações convertidas pelo câmbio de cada dia, então a rentabilidade em R$ inclui a variação do dólar;
+  - dividendos com 30% retidos na fonte nos EUA (não há tratado com o Brasil), convertidos pela PTAX do crédito.
+- **Telas dos EUA:** botão "Ver em R$" pela PTAX de venda mais recente, com a data; a preferência fica no navegador.
+- **Simulador de opções:** continua fora (a especificação exige confirmação do usuário).
+
 ## Perguntas em aberto
 
 > Itens 1 a 11 e 15 respondidos (D-012, D-019, D-020). Os demais seguem abertos.
